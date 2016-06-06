@@ -28,6 +28,7 @@
 #include "nautilus-files-view.h"
 
 #include "nautilus-application.h"
+#include "nautilus-batch-rename.h"
 #include "nautilus-error-reporting.h"
 #include "nautilus-floating-bar.h"
 #include "nautilus-list-view.h"
@@ -5500,6 +5501,7 @@ real_action_rename (NautilusFilesView *view,
 {
         NautilusFile *file;
         GList *selection;
+        NautilusBatchRename *dialog;
 
         g_assert (NAUTILUS_IS_FILES_VIEW (view));
 
@@ -5510,6 +5512,10 @@ real_action_rename (NautilusFilesView *view,
                 if (selection->next != NULL) {
                         if (have_bulk_rename_tool ()) {
                                 invoke_external_bulk_rename_utility (view, selection);
+                        } else {
+                                dialog = nautilus_batch_rename_new (view);
+
+                                gtk_widget_show (GTK_WIDGET (dialog));
                         }
                 } else {
                         file = NAUTILUS_FILE (selection->data);
@@ -6295,8 +6301,12 @@ real_update_actions_state (NautilusFilesView *view)
         action = g_action_map_lookup_action (G_ACTION_MAP (view_action_group),
                                              "rename");
         if (selection_count > 1) {
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
-                                             have_bulk_rename_tool ());
+                if (have_bulk_rename_tool())
+                    g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                                 have_bulk_rename_tool ());
+                else
+                    g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
+                                                 nautilus_file_can_rename_files (selection));//use nautilus_file_can_rename_files
         } else {
                 g_simple_action_set_enabled (G_SIMPLE_ACTION (action),
                                              selection_count == 1 &&

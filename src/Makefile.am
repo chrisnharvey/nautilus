@@ -160,6 +160,8 @@ nautilus_no_main_sources = \
 	gtk/nautilusgtkplacesviewrowprivate.h		\
 	nautilus-application.c			\
 	nautilus-application.h			\
+	nautilus-batch-rename.c 		\
+	nautilus-batch-rename.h 		\
 	nautilus-bookmark-list.c		\
 	nautilus-bookmark-list.h		\
 	nautilus-canvas-view.c			\
@@ -213,6 +215,8 @@ nautilus_no_main_sources = \
 	nautilus-properties-window.h		\
 	nautilus-query-editor.c			\
 	nautilus-query-editor.h			\
+	nautilus-rename-utilities.c 		\
+	nautilus-rename-utilities.h 		\
 	nautilus-search-popover.c		\
 	nautilus-search-popover.h		\
 	nautilus-self-check-functions.c 	\

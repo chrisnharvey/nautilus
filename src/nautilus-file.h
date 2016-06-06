@@ -266,6 +266,7 @@ gboolean                nautilus_file_can_read                          (Nautilu
 gboolean                nautilus_file_can_write                         (NautilusFile                   *file);
 gboolean                nautilus_file_can_execute                       (NautilusFile                   *file);
 gboolean                nautilus_file_can_rename                        (NautilusFile                   *file);
+gboolean                nautilus_file_can_rename_files                  (GList                          *selection);
 gboolean                nautilus_file_can_delete                        (NautilusFile                   *file);
 gboolean                nautilus_file_can_trash                         (NautilusFile                   *file);
 

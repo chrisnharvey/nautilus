@@ -1525,6 +1525,21 @@ real_can_rename (NautilusFile *file)
 }
 
 gboolean
+nautilus_file_can_rename_files (GList *selection)
+{
+	GList *l;
+	NautilusFile *file;
+
+	for(l = selection; l != NULL; l = l->next) {
+		file = NAUTILUS_FILE (l->data);
+
+		if (!nautilus_file_can_rename (file))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+gboolean
 nautilus_file_can_delete (NautilusFile *file)
 {
 	g_return_val_if_fail (NAUTILUS_IS_FILE (file), FALSE);

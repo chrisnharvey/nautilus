@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="NautilusBatchRename" parent="GtkDialog">
+    <property name="resizable">False</property>
+    <property name="modal">True</property>
+    <property name="window_position">center-on-parent</property>
+    <property name="destroy_with_parent">True</property>
+    <property name="title">Batch rename</property>
+
+    <child internal-child="vbox">
+      <object class="GtkBox" id="vbox">
+        <child>
+          <object class="GtkGrid" id="grid">
+            <property name="visible">True</property>
+            <property name="margin">10</property>
+            <property name="row-spacing">6</property>
+            <property name="column-spacing">6</property>
+            <property name="hexpand">True</property>
+            <property name="row-homogeneous">False</property>
+            <property name="column-homogeneous">False</property>
+            <child>
+              <object class="GtkComboBoxText" id="rename_modes">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="expand">False</property>
+                <signal name="changed" handler="batch_rename_mode_changed" swapped="no" />
+                <items>
+                  <item translatable="yes" id="add_text">Add Text</item>
+                  <item translatable="yes" id="replace">Replace</item>
+                  <item translatable="yes" id="format">Format</item>
+                </items>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">0</property>
+                <property name="width">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkEntry" id="name_entry">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="width_request">275</property>
+                <property name="hexpand">False</property>
+                <property name="activates-default">True</property>
+                <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
+                <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">1</property>
+                <property name="width">3</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="cancel_button">
+                <property name="label" translatable="yes">_Cancel</property>
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="use_underline">True</property>
+                <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
+              </object>
+              <packing>
+                <property name="left-attach">5</property>
+                <property name="top-attach">2</property>
+                <property name="width">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkButton" id="rename_button">
+                <property name="label" translatable="yes">_Rename</property>
+                <property name="visible">True</property>
+                <property name="use_underline">True</property>
+                <property name="can_default">True</property>
+                <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
+                <style>
+                  <class name="suggested-action"/>
+                </style>
+              </object>
+              <packing>
+                <property name="left-attach">6</property>
+                <property name="top-attach">2</property>
+                <property name="width">1</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="error_label">
+                <property name="visible">True</property>
+                <property name="halign">start</property>
+                <property name="can_focus">False</property>
+              </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">2</property>
+                <property name="width">8</property>
+              </packing>
+            </child>
+            <child>
+              <object class="GtkStack" id="left_stack">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="hhomogeneous">True</property>
+                <child>
+                  <object class="GtkComboBoxText" id="add_text_options">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="expand">False</property>
+                    <signal name="changed" handler="batch_rename_add_text_changed" swapped="no" />
+                    <items>
+                      <item translatable="yes" id="append">Append</item>
+                      <item translatable="yes" id="prepend">Prepend</item>
+                    </items>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkLabel" id="find_label">
+                    <property name="visible">True</property>
+                    <property name="label" translatable="yes">Replace:</property>
+                    <property name="can_focus">False</property>
+                  </object>
+                </child>
+              </object>
+              <packing>
+                  <property name="left-attach">0</property>
+                  <property name="top-attach">1</property>
+                  <property name="width">1</property>
+              </packing>
+          </child>
+            <child>
+              <object class="GtkStack" id="right_stack">
+                <property name="visible">True</property>
+                <property name="can_focus">False</property>
+                <property name="hhomogeneous">True</property>
+                <child>
+                  <object class="GtkBox" id="replace_box">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">6</property>
+                  <child>
+                    <object class="GtkLabel" id="replace_label">
+                      <property name="visible">True</property>
+                      <property name="label" translatable="yes">With:</property>
+                      <property name="can_focus">False</property>
+                    </object>
+                  </child>
+                <child>
+                  <object class="GtkEntry" id="replace_entry">
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="width_request">275</property>
+                    <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
+                    <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
+                  </object>
+                </child>
+
+                  </object>
+                </child>
+              </object>
+              <packing>
+                  <property name="left-attach">4</property>
+                  <property name="top-attach">1</property>
+                  <property name="width">3</property>
+              </packing>
+          </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>
