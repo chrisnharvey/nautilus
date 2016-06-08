@@ -20,7 +20,7 @@
 #include "nautilus-file.h"
 #include "nautilus-files-view.h"
 #include "nautilus-error-reporting.h"
-#include "nautilus-rename-utilities.h"
+#include "nautilus-batch-rename-utilities.h"
 
 #include <glib/gprintf.h>
 #include <string.h>

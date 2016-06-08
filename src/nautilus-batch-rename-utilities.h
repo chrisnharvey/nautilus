@@ -1,5 +1,5 @@
-#ifndef NAUTILUS_RENAME_UTILITIES_H
-#define NAUTILUS_RENAME_UTILITIES_H
+#ifndef NAUTILUS_BATCH_RENAME_UTILITIES_H
+#define NAUTILUS_BATCH_RENAME_UTILITIES_H
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
@@ -19,4 +19,4 @@ gchar* get_new_display_name     (NautilusBatchRenameModes    mode,
                                  gchar                       *entry_text,
                                  gchar                       *replace_text);
 
-#endif /* NAUTILUS_RENAME_UTILITIES_H */
+#endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

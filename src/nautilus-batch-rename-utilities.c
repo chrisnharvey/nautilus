@@ -1,5 +1,5 @@
 #include "nautilus-batch-rename.h"
-#include "nautilus-rename-utilities.h"
+#include "nautilus-batch-rename-utilities.h"
 
 #include <glib.h>
 #include <gtk/gtk.h>

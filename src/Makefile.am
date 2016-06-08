@@ -215,8 +215,8 @@ nautilus_no_main_sources = \
 	nautilus-properties-window.h		\
 	nautilus-query-editor.c			\
 	nautilus-query-editor.h			\
-	nautilus-rename-utilities.c 		\
-	nautilus-rename-utilities.h 		\
+	nautilus-batch-rename-utilities.c 		\
+	nautilus-batch-rename-utilities.h 		\
 	nautilus-search-popover.c		\
 	nautilus-search-popover.h		\
 	nautilus-self-check-functions.c 	\
