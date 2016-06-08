@@ -27,6 +27,7 @@
 
 #define ADD_TEXT_ENTRY_SIZE 550
 #define REPLACE_ENTRY_SIZE  275
+#define MAX_DISPLAY_LEN 40
 
 struct _NautilusBatchRename
 {
@@ -286,6 +287,9 @@ nautilus_batch_rename_new (NautilusFilesView *view)
                                       GTK_WINDOW (nautilus_files_view_get_window (view)));
 
         gtk_widget_grab_focus (dialog->name_entry);
+
+        gtk_label_set_ellipsize (GTK_LABEL (dialog->error_label), PANGO_ELLIPSIZE_END);
+        gtk_label_set_max_width_chars (GTK_LABEL (dialog->error_label), MAX_DISPLAY_LEN);
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);

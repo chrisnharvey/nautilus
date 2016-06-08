@@ -159,8 +159,5 @@ get_new_display_name (NautilusBatchRenameModes    mode,
 
         result = get_new_name (mode, file_name, entry_text, replace_text);
 
-        if (strlen (result) >= MAX_DISPLAY_LEN)
-                memcpy (result + MAX_DISPLAY_LEN, "...\0",4);
-
         return result;
 }
