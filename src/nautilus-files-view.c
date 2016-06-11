@@ -1801,6 +1801,20 @@ file_name_widget_entry_on_changed (gpointer user_data)
         g_free (name);
 }
 
+gboolean
+file_with_name_exists (NautilusFilesView *view,
+                       gchar             *name)
+{
+        NautilusFile *existing_file;
+
+        existing_file = nautilus_directory_get_file_by_name (view->details->model, name);
+
+        if (existing_file == NULL)
+                return FALSE;
+
+        return TRUE;
+}
+
 static void
 create_folder_dialog_on_response (GtkDialog *dialog,
                                   gint       response_id,

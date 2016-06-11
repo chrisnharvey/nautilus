@@ -58,9 +58,12 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="use_underline">True</property>
+                <property name="height_request">10</property>
                 <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
               </object>
               <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
                 <property name="left-attach">5</property>
                 <property name="top-attach">2</property>
                 <property name="width">1</property>
@@ -72,22 +75,65 @@
                 <property name="visible">True</property>
                 <property name="use_underline">True</property>
                 <property name="can_default">True</property>
+                <property name="height_request">10</property>
                 <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
                 <style>
                   <class name="suggested-action"/>
                 </style>
               </object>
               <packing>
+                <property name="expand">False</property>
+                <property name="fill">False</property>
                 <property name="left-attach">6</property>
                 <property name="top-attach">2</property>
                 <property name="width">1</property>
               </packing>
             </child>
+
             <child>
-              <object class="GtkLabel" id="error_label">
+              <object class="GtkStack" id="label_stack">
                 <property name="visible">True</property>
-                <property name="halign">start</property>
                 <property name="can_focus">False</property>
+                <child>
+                  <object class="GtkLabel" id="error_label">
+                    <property name="visible">True</property>
+                    <property name="halign">start</property>
+                    <property name="can_focus">False</property>
+                  </object>
+                </child>
+
+                <child>
+                  <object class="GtkExpander" id="expander">
+                    <property name="visible">True</property>
+                    <property name="valign">center</property>
+                    <child type="label">
+                      <object class="GtkLabel" id="expander-label"/>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="height_request">100</property>
+                        <property name="width_request">100</property>
+                        <property name="visible">True</property>
+                        <property name="can_focus">True</property>
+                        <property name="hexpand">False</property>
+                        <property name="shadow_type">in</property>
+                        <child>
+                          <object class="GtkViewport">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                            <child>
+                              <object class="GtkListBox" id="conflict_listbox">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+
               </object>
               <packing>
                 <property name="left-attach">0</property>
@@ -95,6 +141,7 @@
                 <property name="width">8</property>
               </packing>
             </child>
+
             <child>
               <object class="GtkStack" id="left_stack">
                 <property name="visible">True</property>
@@ -153,7 +200,6 @@
                     <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
                   </object>
                 </child>
-
                   </object>
                 </child>
               </object>

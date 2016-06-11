@@ -19,4 +19,11 @@ gchar* get_new_display_name     (NautilusBatchRenameModes    mode,
                                  gchar                       *entry_text,
                                  gchar                       *replace_text);
 
+GList* list_has_duplicates      (NautilusFilesView           *view,
+                                 GList                       *names,
+                                 GList                       *old_names);
+
+gchar* concat                   (gchar                       *s1,
+                                 gchar                       *s2);
+
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

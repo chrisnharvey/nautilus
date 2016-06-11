@@ -367,4 +367,7 @@ void              nautilus_files_view_action_show_hidden_files   (NautilusFilesV
 GActionGroup *    nautilus_files_view_get_action_group           (NautilusFilesView      *view);
 GtkWidget*        nautilus_files_view_get_content_widget         (NautilusFilesView      *view);
 
+gboolean          file_with_name_exists                          (NautilusFilesView      *view,
+                                                                  gchar                  *name);
+
 #endif /* NAUTILUS_FILES_VIEW_H */

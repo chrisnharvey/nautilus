@@ -1,5 +1,6 @@
 #include "nautilus-batch-rename.h"
 #include "nautilus-batch-rename-utilities.h"
+#include "nautilus-files-view.h"
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -160,4 +161,43 @@ get_new_display_name (NautilusBatchRenameModes    mode,
         result = get_new_name (mode, file_name, entry_text, replace_text);
 
         return result;
+}
+
+GList*
+list_has_duplicates (NautilusFilesView *view,
+                     GList             *new_names,
+                     GList             *old_names)
+{
+        GList *l1, *l2;
+        GList *result;
+        NautilusFile *file;
+        gchar *file_name;
+
+        result = NULL;
+
+        for (l1 = new_names, l2 = old_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                file = NAUTILUS_FILE (l2->data);
+                file_name = strdup (nautilus_file_get_name (file));
+
+                if (strcmp (l1->data, file_name) != 0 && file_with_name_exists (view, l1->data) == TRUE) {
+                        result = g_list_prepend (result,
+                                                 (gpointer) (l1->data));
+                }
+
+                g_free (file_name);
+        }
+        return result;
+}
+
+gchar*
+concat(gchar *s1, gchar *s2)
+{
+    gchar *result;
+
+    result = malloc (strlen(s1) + strlen(s2) + 1);
+
+    memcpy(result, s1, strlen(s1));
+    memcpy(result + strlen(s1), s2, strlen(s2) + 1);
+
+    return result;
 }
