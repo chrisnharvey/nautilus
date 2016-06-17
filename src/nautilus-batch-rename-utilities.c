@@ -10,8 +10,8 @@
 #define MAX_DISPLAY_LEN 40
 
 static gchar*
-batch_rename_prepend (gchar *file_name,
-                      gchar *entry_text)
+batch_rename_append (gchar *file_name,
+                     gchar *entry_text)
 {
         gchar *result;
 
@@ -25,8 +25,8 @@ batch_rename_prepend (gchar *file_name,
 }
 
 static gchar*
-batch_rename_append (gchar *file_name,
-                     gchar *entry_text)
+batch_rename_prepend (gchar *file_name,
+                      gchar *entry_text)
 {
         gchar *result;
 
