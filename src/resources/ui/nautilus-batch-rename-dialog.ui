@@ -6,6 +6,34 @@
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
     <property name="title">Batch rename</property>
+    <property name="use-header-bar">1</property>
+
+    <child type="action">
+      <object class="GtkButton" id="cancel_button">
+        <property name="label" translatable="yes">_Cancel</property>
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="use_underline">True</property>
+        <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
+      </object>
+    </child>
+
+    <child type="action">
+      <object class="GtkButton" id="rename_button">
+        <property name="label" translatable="yes">_Rename</property>
+        <property name="visible">True</property>
+        <property name="use_underline">True</property>
+        <property name="can_default">True</property>
+        <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
+        <style>
+          <class name="suggested-action"/>
+        </style>
+      </object>
+    </child>
+    <action-widgets>
+      <action-widget response="ok" default="true">rename_button</action-widget>
+      <action-widget response="cancel">cancel_button</action-widget>
+    </action-widgets>
 
     <child internal-child="vbox">
       <object class="GtkBox" id="vbox">
@@ -37,6 +65,17 @@
               </packing>
             </child>
             <child>
+              <object class="GtkStackSwitcher" id="stack_switcher">
+                <property name="stack">label_stack</property>
+                <property name="no-show-all">1</property>
+              </object>
+              <packing>
+                <property name="left-attach">1</property>
+                <property name="top-attach">0</property>
+                <property name="width">1</property>
+              </packing>
+            </child>
+            <child>
               <object class="GtkEntry" id="name_entry">
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
@@ -52,44 +91,6 @@
                 <property name="width">3</property>
               </packing>
             </child>
-            <child>
-              <object class="GtkButton" id="cancel_button">
-                <property name="label" translatable="yes">_Cancel</property>
-                <property name="visible">True</property>
-                <property name="can_focus">True</property>
-                <property name="use_underline">True</property>
-                <property name="height_request">10</property>
-                <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="left-attach">5</property>
-                <property name="top-attach">2</property>
-                <property name="width">1</property>
-              </packing>
-            </child>
-            <child>
-              <object class="GtkButton" id="rename_button">
-                <property name="label" translatable="yes">_Rename</property>
-                <property name="visible">True</property>
-                <property name="use_underline">True</property>
-                <property name="can_default">True</property>
-                <property name="height_request">10</property>
-                <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
-                <style>
-                  <class name="suggested-action"/>
-                </style>
-              </object>
-              <packing>
-                <property name="expand">False</property>
-                <property name="fill">False</property>
-                <property name="left-attach">6</property>
-                <property name="top-attach">2</property>
-                <property name="width">1</property>
-              </packing>
-            </child>
-
             <child>
               <object class="GtkStack" id="label_stack">
                 <property name="visible">True</property>

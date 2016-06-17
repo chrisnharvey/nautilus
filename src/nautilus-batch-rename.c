@@ -27,7 +27,7 @@
 
 #define ADD_TEXT_ENTRY_SIZE 550
 #define REPLACE_ENTRY_SIZE  275
-#define MAX_DISPLAY_LEN 40
+#define MAX_DISPLAY_LEN 50
 
 struct _NautilusBatchRename
 {
@@ -197,19 +197,19 @@ static void
 activate_expander (GtkExpander *expander,
                    NautilusBatchRename *dialog)
 {
-        GValue width = G_VALUE_INIT;
+        //GValue width = G_VALUE_INIT;
 
-        g_value_init (&width, G_TYPE_INT);
+        //g_value_init (&width, G_TYPE_INT);
 
-        if (gtk_expander_get_expanded (GTK_EXPANDER (expander))) {
+        //if (gtk_expander_get_expanded (GTK_EXPANDER (expander))) {
 
-                g_value_set_int (&width, 8);
-                gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
-        } else {
+                //g_value_set_int (&width, 8);
+                //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
+        //} else {
 
-                g_value_set_int (&width, 5);
-                gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
-        }
+                //g_value_set_int (&width, 5);
+                //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
+        //}
 }
 
 static void
@@ -305,7 +305,8 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         GList *duplicates;
         gchar *display_text = NULL;
         NautilusFile *file;
-        GValue width = G_VALUE_INIT;
+        gboolean singe_conflict;
+        //GValue width = G_VALUE_INIT;
 
         if(dialog->selection == NULL)
                 return;
@@ -313,32 +314,44 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         new_names = batch_rename_get_new_names(dialog);
         duplicates = list_has_duplicates (dialog->view, new_names, dialog->selection);
 
+        if (duplicates != NULL)
+                singe_conflict = (duplicates->next == NULL) ? TRUE:FALSE;
+
+        file_name = NULL;
+
         /* check if there are name conflicts and display them if they exist */
-        if (duplicates != NULL && gtk_widget_is_sensitive (dialog->rename_button)) {
+        if (duplicates != NULL) {
                 gtk_widget_set_sensitive (dialog->rename_button, FALSE);
 
-                gtk_expander_set_expanded (GTK_EXPANDER (dialog->expander), FALSE);
-                gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack), GTK_WIDGET (dialog->expander));
-
                 /* check if there is more than one conflict */
-                if (duplicates->next != NULL)
+                if (!singe_conflict)
                         gtk_expander_set_label (GTK_EXPANDER (dialog->expander),
                                                 "Multiple file conflicts");
                 else {
                         file_name = concat ("File conflict: ", duplicates->data);
 
+                        if (strlen (file_name) >= MAX_DISPLAY_LEN) {
                         gtk_label_set_label (GTK_LABEL (dialog->expander_label), file_name);
 
                         gtk_expander_set_label_widget (GTK_EXPANDER (dialog->expander),
                                                        dialog->expander_label);
 
                         gtk_widget_show (dialog->expander_label);
+                        } else {
+                               gtk_label_set_label (GTK_LABEL (dialog->error_label), file_name);
+                        }
+                }
 
-                        g_free (file_name);
+                if (!singe_conflict || strlen (file_name) >= MAX_DISPLAY_LEN) {
+                        gtk_expander_set_expanded (GTK_EXPANDER (dialog->expander), FALSE);
+                        gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack),
+                                                     GTK_WIDGET (dialog->expander));
                 }
 
                 /* add name conflicts to the listbox */
                 fill_conflict_listbox (dialog, duplicates);
+
+                g_free (file_name);
 
                 return;
         }
@@ -351,9 +364,9 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 
                         gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack), GTK_WIDGET (dialog->error_label));
 
-                        g_value_init (&width, G_TYPE_INT);
-                        g_value_set_int (&width, 8);
-                        gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
+                        //g_value_init (&width, G_TYPE_INT);
+                        //g_value_set_int (&width, 8);
+                        //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
 
 
                 }
@@ -390,8 +403,6 @@ static void
 batch_rename_dialog_on_closed (GtkDialog *dialog)
 {
         gtk_window_close (GTK_WINDOW (dialog));
-        g_message("closed this");
-
 }
 
 static void
