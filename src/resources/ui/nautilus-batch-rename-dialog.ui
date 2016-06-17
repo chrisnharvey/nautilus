@@ -6,8 +6,6 @@
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
     <property name="title">Batch rename</property>
-    <property name="use-header-bar">1</property>
-
     <child type="action">
       <object class="GtkButton" id="cancel_button">
         <property name="label" translatable="yes">_Cancel</property>
