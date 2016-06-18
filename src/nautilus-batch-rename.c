@@ -420,30 +420,11 @@ file_names_widget_on_activate (NautilusBatchRename *dialog)
         g_list_free (new_names);
 }
 
-static GObject*
-nautilus_batch_rename_constructor (GType                  type,
-                                   guint                  n_construct_properties,
-                                   GObjectConstructParam *construct_params)
-{
-        GObject *object;
-
-        object = (* G_OBJECT_CLASS (nautilus_batch_rename_parent_class)->constructor) (type,
-                                                                                       n_construct_properties,
-                                                                                       construct_params);
-
-        g_object_set (object,"use-header-bar",1, NULL);
-
-        return object;
-}
-
 static void
 nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
 {
         GtkDialogClass *dialog_class = GTK_DIALOG_CLASS (klass);
         GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
-        GObjectClass   *oclass       = G_OBJECT_CLASS (klass);
-
-        oclass->constructor = nautilus_batch_rename_constructor;
 
         dialog_class->close = batch_rename_dialog_on_closed;
 
@@ -478,7 +459,7 @@ nautilus_batch_rename_new (NautilusFilesView *view)
 {
         NautilusBatchRename *dialog;
 
-        dialog = g_object_new (NAUTILUS_TYPE_BATCH_RENAME, NULL);
+        dialog = g_object_new (NAUTILUS_TYPE_BATCH_RENAME,"use-header-bar",1, NULL);
 
         dialog->selection = nautilus_view_get_selection (NAUTILUS_VIEW (view));
         dialog->view = view;
