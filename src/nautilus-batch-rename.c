@@ -27,7 +27,7 @@
 
 #define ADD_TEXT_ENTRY_SIZE 550
 #define REPLACE_ENTRY_SIZE  275
-#define MAX_DISPLAY_LEN 50
+#define MAX_DISPLAY_LEN 65
 
 struct _NautilusBatchRename
 {
@@ -35,23 +35,23 @@ struct _NautilusBatchRename
 
         GtkWidget               *grid;
 
-        GtkWidget               *add_text_options;
         GtkWidget               *cancel_button;
         GtkWidget               *conflict_listbox;
         GtkWidget               *error_label;
         GtkWidget               *expander;
         GtkWidget               *name_entry;
         GtkWidget               *rename_button;
-        GtkWidget               *rename_modes;
         GtkWidget               *find_label;
-        GtkWidget               *left_stack;
+        GtkWidget               *find_entry;
+        GtkWidget               *mode_stack;
         GtkWidget               *label_stack;
-        GtkWidget               *right_stack;
         GtkWidget               *replace_entry;
         GtkWidget               *replace_label;
-        GtkWidget               *replace_box;
+        GtkWidget               *new_name_button;
+        GtkWidget               *append_button;
+        GtkWidget               *prepend_button;
 
-        GList                   *listbox_rows;//adauga aici rows de la listbox pt a fi sterse
+        GList                   *listbox_rows;
 
         GList                   *selection;
         NautilusBatchRenameModes mode;
@@ -75,7 +75,11 @@ batch_rename_get_new_names (NautilusBatchRename *dialog)
 
         selection = dialog->selection;
 
-        entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+        if (dialog->mode == NAUTILUS_BATCH_RENAME_REPLACE)
+                entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
+        else
+                entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+
         replace_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->replace_entry)));
 
         result = get_new_names_list (dialog->mode, selection, entry_text, replace_text);
@@ -115,101 +119,50 @@ rename_files_on_names_accepted (NautilusBatchRename *dialog,
 }
 
 static void
-batch_rename_add_text_changed (GtkComboBoxText *widget,
-                               NautilusBatchRename *dialog)
+batch_rename_format_mode_changed (NautilusBatchRename *dialog)
 {
-        gchar* active_item;
+        if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (dialog->new_name_button)))
+                dialog->mode = NAUTILUS_BATCH_RENAME_NEW_NAME;
 
-        active_item = gtk_combo_box_text_get_active_text (widget);
-
-        if (strcmp (active_item, "Append") == 0)
-                dialog->mode = NAUTILUS_BATCH_RENAME_APPEND;
-
-        if (strcmp (active_item, "Prepend") == 0)
+        if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (dialog->prepend_button)))
                 dialog->mode = NAUTILUS_BATCH_RENAME_PREPEND;
 
+        if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (dialog->append_button)))
+                dialog->mode = NAUTILUS_BATCH_RENAME_APPEND;
+
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
 }
 
 static void
-switch_to_replace_mode (NautilusBatchRename *dialog)
+mode_stack_changed (GtkStack            *stack,
+                    GParamSpec          *pspec,
+                    NautilusBatchRename *dialog)
 {
-        GValue width = G_VALUE_INIT;
+        const gchar *visible_child;
+        visible_child = gtk_stack_get_visible_child_name (stack);
 
-        g_value_init (&width, G_TYPE_INT);
-        g_value_set_int (&width, 3);
+        if (strcmp (visible_child, "format") == 0) {
+                /* switch the mode to what was before set with the radio buttons */
+                batch_rename_format_mode_changed (dialog);
 
-        gtk_stack_set_visible_child (GTK_STACK (dialog->left_stack), GTK_WIDGET (dialog->find_label));
-        gtk_stack_set_visible_child (GTK_STACK (dialog->right_stack), GTK_WIDGET (dialog->replace_box));
-        gtk_widget_show (GTK_WIDGET (dialog->replace_box));
+                gtk_entry_set_text (GTK_ENTRY (dialog->name_entry),
+                                    gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
 
-        gtk_widget_grab_focus (dialog->name_entry);
+                gtk_widget_grab_focus (dialog->name_entry);
+        }
 
-        gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->name_entry, "width",&width);
-
-        gtk_widget_set_size_request (dialog->name_entry, REPLACE_ENTRY_SIZE, -1);
-}
-
-static void
-switch_to_add_text_mode (NautilusBatchRename *dialog)
-{
-        GValue width = G_VALUE_INIT;
-
-        g_value_init (&width, G_TYPE_INT);
-        g_value_set_int (&width, 6);
-
-        gtk_stack_set_visible_child (GTK_STACK (dialog->left_stack), GTK_WIDGET (dialog->add_text_options));
-        gtk_widget_hide (GTK_WIDGET (dialog->replace_box));
-
-        gtk_widget_grab_focus (dialog->name_entry);
-
-        gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->name_entry, "width",&width);
-
-        gtk_widget_set_size_request (dialog->name_entry, ADD_TEXT_ENTRY_SIZE, -1);
-}
-
-static void
-batch_rename_mode_changed (GtkComboBoxText *widget,
-                           NautilusBatchRename *dialog)
-{
-        gchar* active_item;
-
-        active_item = gtk_combo_box_text_get_active_text (widget);
-
-        if (strcmp (active_item, "Replace") == 0) {
+        if (strcmp (visible_child, "replace") == 0) {
                 dialog->mode = NAUTILUS_BATCH_RENAME_REPLACE;
-                switch_to_replace_mode (dialog);
-        }
 
-        /* check whether before it was append or prepend */
-        if (strcmp (active_item, "Add Text") == 0) {
-                batch_rename_add_text_changed (GTK_COMBO_BOX_TEXT (dialog->add_text_options), dialog);
+                gtk_entry_set_text (GTK_ENTRY (dialog->find_entry),
+                                               gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
 
-                switch_to_add_text_mode (dialog);
+                gtk_widget_grab_focus (dialog->find_entry);
         }
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
-}
-
-static void
-activate_expander (GtkExpander *expander,
-                   NautilusBatchRename *dialog)
-{
-        //GValue width = G_VALUE_INIT;
-
-        //g_value_init (&width, G_TYPE_INT);
-
-        //if (gtk_expander_get_expanded (GTK_EXPANDER (expander))) {
-
-                //g_value_set_int (&width, 8);
-                //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
-        //} else {
-
-                //g_value_set_int (&width, 5);
-                //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
-        //}
 }
 
 static void
@@ -306,7 +259,6 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         gchar *display_text = NULL;
         NautilusFile *file;
         gboolean singe_conflict;
-        //GValue width = G_VALUE_INIT;
 
         if(dialog->selection == NULL)
                 return;
@@ -318,6 +270,7 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
                 singe_conflict = (duplicates->next == NULL) ? TRUE:FALSE;
 
         file_name = NULL;
+        entry_text = NULL;
 
         /* check if there are name conflicts and display them if they exist */
         if (duplicates != NULL) {
@@ -363,22 +316,21 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
                         gtk_widget_set_sensitive (dialog->rename_button, TRUE);
 
                         gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack), GTK_WIDGET (dialog->error_label));
-
-                        //g_value_init (&width, G_TYPE_INT);
-                        //g_value_set_int (&width, 8);
-                        //gtk_container_child_set_property (GTK_CONTAINER (dialog->grid), dialog->label_stack, "width",&width);
-
-
                 }
 
         /* Update label that shows an example of the renaming result */
         file = NAUTILUS_FILE (dialog->selection->data);
 
         file_name = g_strdup (nautilus_file_get_name (file));
-        entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+        if (dialog->mode == NAUTILUS_BATCH_RENAME_REPLACE) {
+                entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
+        }
+        else
+                entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+
         replace_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->replace_entry)));
 
-        if (entry_text == NULL ) {
+        if (entry_text == NULL) {
 
                 gtk_label_set_label (GTK_LABEL (dialog->error_label), file_name);
                 g_free (file_name);
@@ -431,27 +383,26 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_set_template_from_resource (widget_class, "/org/gnome/nautilus/ui/nautilus-batch-rename-dialog.ui");
 
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, grid);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_text_options);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, cancel_button);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, conflict_listbox);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, error_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, expander);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, name_entry);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, rename_button);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, rename_modes);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, find_label);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, left_stack);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, find_entry);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, label_stack);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, right_stack);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, replace_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, replace_entry);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, replace_box);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, new_name_button);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, append_button);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, prepend_button);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, mode_stack);
 
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_entry_on_changed);
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_dialog_on_closed);
-        gtk_widget_class_bind_template_callback (widget_class, batch_rename_mode_changed);
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_on_activate);
-        gtk_widget_class_bind_template_callback (widget_class, batch_rename_add_text_changed);
+        gtk_widget_class_bind_template_callback (widget_class, batch_rename_format_mode_changed);
 }
 
 GtkWidget*
@@ -469,6 +420,8 @@ nautilus_batch_rename_new (NautilusFilesView *view)
 
         gtk_widget_grab_focus (dialog->name_entry);
 
+        gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (dialog->append_button), TRUE);
+
         gtk_label_set_ellipsize (GTK_LABEL (dialog->error_label), PANGO_ELLIPSIZE_END);
         gtk_label_set_max_width_chars (GTK_LABEL (dialog->error_label), MAX_DISPLAY_LEN);
 
@@ -476,6 +429,11 @@ nautilus_batch_rename_new (NautilusFilesView *view)
         gtk_label_set_max_width_chars (GTK_LABEL (dialog->expander_label), MAX_DISPLAY_LEN - 1);
 
         gtk_widget_set_vexpand (dialog->rename_button, FALSE);
+
+        g_signal_connect (dialog->mode_stack,
+                          "notify::visible-child",
+                          G_CALLBACK (mode_stack_changed),
+                          dialog);
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
@@ -488,15 +446,10 @@ nautilus_batch_rename_init (NautilusBatchRename *self)
 {
         gtk_widget_init_template (GTK_WIDGET (self));
 
-        gtk_combo_box_set_active (GTK_COMBO_BOX (self->add_text_options), 1);      
-        gtk_combo_box_set_active (GTK_COMBO_BOX (self->rename_modes), 0);
-
         gtk_list_box_set_header_func (GTK_LIST_BOX (self->conflict_listbox),
                                 (GtkListBoxUpdateHeaderFunc) listbox_header_func,
                                 self,
                                 NULL);
-
-        g_signal_connect (self->expander, "activate", G_CALLBACK (activate_expander), self);
 
         self->expander_label = gtk_label_new ("");
 

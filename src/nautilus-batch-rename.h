@@ -12,7 +12,7 @@ typedef enum {
         NAUTILUS_BATCH_RENAME_APPEND = 0,
         NAUTILUS_BATCH_RENAME_PREPEND = 1,
         NAUTILUS_BATCH_RENAME_REPLACE = 2,
-        NAUTILUS_BATCH_RENAME_FORMAT = 3,
+        NAUTILUS_BATCH_RENAME_NEW_NAME = 3,
 } NautilusBatchRenameModes;
 
 #define NAUTILUS_TYPE_BATCH_RENAME (nautilus_batch_rename_get_type())
