@@ -78,7 +78,7 @@
               <packing>
                 <property name="left-attach">3</property>
                 <property name="top-attach">0</property>
-                <property name="width">1</property>                
+                <property name="width">1</property>
               </packing>
             </child>
             <child>
@@ -86,7 +86,7 @@
                 <property name="visible">True</property>
                 <property name="can_focus">False</property>
                 <property name="vhomogeneous">False</property>
-                <property name="hhomogeneous">False</property>
+                <property name="hhomogeneous">True</property>
                 <property name="transition_type">crossfade</property>
                 <property name="transition_duration">100</property>
                 <child>
@@ -96,7 +96,7 @@
                     <property name="margin-right">40</property>
                     <property name="margin-top">0</property>
                     <property name="margin-bottom">10</property>
-                    <property name="row-spacing">6</property>
+                    <property name="row-spacing">15</property>
                     <property name="column-spacing">6</property>
                     <child>
                       <object class="GtkBox">
@@ -116,16 +116,10 @@
                           </object>
                         </child>
                         <child>
-                          <object class="GtkPopover" id="add_popover">
+                          <object class="GtkToggleButton" id="add_button">
                             <property name="visible">True</property>
-                            <child>
-                              <object class="GtkLabel" id="_label">
-                                <property name="visible">True</property>
-                                <property name="label" translatable="yes">Replace With</property>
-                                <property name="can_focus">False</property>
-                                <property name="sensitive">False</property>
-                              </object>
-                            </child>
+                            <property name="label" translatable="yes">+ Add</property>
+                            <signal name="toggled" handler="add_button_clicked" swapped="yes" />
                           </object>
                         </child>
                       </object>
@@ -133,6 +127,37 @@
                         <property name="left-attach">0</property>
                         <property name="top-attach">0</property>
                         <property name="width">5</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="numbering_order_label">
+                        <property name="visible">True</property>
+                        <property name="label" translatable="yes">Automatic Numbering Order</property>
+                        <property name="can_focus">False</property>
+                        <property name="sensitive">False</property>
+                      </object>
+                      <packing>
+                        <property name="left-attach">0</property>
+                        <property name="top-attach">1</property>
+                        <property name="width">1</property>
+                      </packing>
+                    </child>
+                    <child>
+                      <object class="GtkToggleButton" id="numbering_order_button">
+                        <property name="visible">True</property>
+                        <signal name="toggled" handler="numbering_order_button_clicked" swapped="yes" />
+                        <child>
+                          <object class="GtkLabel" id="numering_order">
+                            <property name="visible">True</property>
+                            <property name="label" translatable="yes">Original name (Ascending)</property>
+                            <property name="can_focus">False</property>
+                          </object>
+                        </child>
+                      </object>
+                      <packing>
+                        <property name="left-attach">4</property>
+                        <property name="top-attach">1</property>
+                        <property name="width">1</property>
                       </packing>
                     </child>
                   </object>
@@ -148,7 +173,7 @@
                     <property name="margin-right">40</property>
                     <property name="margin-top">0</property>
                     <property name="margin-bottom">10</property>
-                    <property name="row-spacing">6</property>
+                    <property name="row-spacing">15</property>
                     <property name="column-spacing">6</property>
                     <child>
                       <object class="GtkLabel" id="existing_text_label">
@@ -263,5 +288,31 @@
     <property name="value">1</property>
     <property name="step_increment">1</property>
     <property name="page_increment">10</property>
+  </object>
+  <object class="GtkPopover" id="add_popover">
+    <property name="relative-to">add_button</property>
+    <property name="position">bottom</property>
+    <signal name="closed" handler="add_popover_closed" swapped="yes" />
+    <child>
+      <object class="GtkLabel">
+        <property name="visible">True</property>
+        <property name="label" translatable="yes">label for testing purpose</property>
+        <property name="can_focus">False</property>
+        <property name="sensitive">True</property>
+      </object>
+    </child>
+  </object>
+  <object class="GtkPopover" id="numbering_order_popover">
+    <property name="relative-to">numbering_order_button</property>
+    <property name="position">bottom</property>
+    <signal name="closed" handler="numbering_order_popover_closed" swapped="yes" />
+    <child>
+      <object class="GtkLabel">
+        <property name="visible">True</property>
+        <property name="label" translatable="yes">some other ordering option</property>
+        <property name="can_focus">False</property>
+        <property name="sensitive">True</property>
+      </object>
+    </child>
   </object>
 </interface>
