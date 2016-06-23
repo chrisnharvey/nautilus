@@ -6,57 +6,81 @@
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
 
-    <child internal-child="headerbar">
-      <object class="GtkHeaderBar" id="headerbar1">
-        <property name="visible">1</property>
-        <property name="show-close-button">0</property>
-        <child type="title">
-          <object class="GtkStackSwitcher" id="stack_switcher">
-            <property name="visible">True</property>
-            <property name="stack">mode_stack</property>
-            <property name="no-show-all">1</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkButton" id="cancel_button">
-            <property name="label" translatable="yes">_Cancel</property>
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="use_underline">True</property>
-            <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
-          </object>
-          <packing>
-            <property name="pack-type">start</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkButton" id="rename_button">
-            <property name="label" translatable="yes">_Rename</property>
-            <property name="visible">True</property>
-            <property name="use_underline">True</property>
-            <property name="can_default">True</property>
-            <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
-            <style>
-              <class name="suggested-action"/>
-            </style>
-          </object>
-          <packing>
-            <property name="pack-type">end</property>
-          </packing>
-        </child>
+    <child type="action">
+      <object class="GtkButton" id="cancel_button">
+        <property name="label" translatable="yes">_Cancel</property>
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="use_underline">True</property>
+        <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
       </object>
     </child>
+    <child type="action">
+      <object class="GtkButton" id="rename_button">
+        <property name="label" translatable="yes">_Rename</property>
+        <property name="visible">True</property>
+        <property name="use_underline">True</property>
+        <property name="can_default">True</property>
+        <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
+        <style>
+          <class name="suggested-action"/>
+        </style>
+      </object>
+    </child>
+
+    <action-widgets>
+      <action-widget response="ok" default="true">rename_button</action-widget>
+      <action-widget response="cancel">cancel_button</action-widget>
+    </action-widgets>
+
     <child internal-child="vbox">
       <object class="GtkBox" id="vbox">
         <child>
           <object class="GtkGrid" id="grid">
             <property name="visible">True</property>
-            <property name="margin">10</property>
+            <property name="margin">0</property>
             <property name="row-spacing">6</property>
             <property name="column-spacing">6</property>
             <property name="hexpand">True</property>
             <property name="row-homogeneous">False</property>
             <property name="column-homogeneous">False</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">horizontal</property>
+                <property name="spacing">15</property>
+                <property name="visible">True</property>
+                <property name="halign">center</property>
+                <property name="margin">20</property>
+                <child>
+                  <object class="GtkRadioButton" id="format_mode_button">
+                    <property name="label" translatable="yes">_Format mode</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="use_underline">True</property>
+                    <property name="active">True</property>
+                    <signal name="toggled" handler="batch_rename_mode_changed" swapped="yes" />
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkRadioButton" id="replace_mode_button">
+                    <property name="label" translatable="yes">Find and _replace text</property>
+                    <property name="visible">True</property>
+                    <property name="can_focus">True</property>
+                    <property name="receives_default">False</property>
+                    <property name="use_underline">True</property>
+                    <property name="active">True</property>
+                    <property name="group">format_mode_button</property>
+                    <signal name="toggled" handler="batch_rename_mode_changed" swapped="yes" />
+                  </object>
+                </child>
+              </object>
+              <packing>
+                <property name="left-attach">3</property>
+                <property name="top-attach">0</property>
+                <property name="width">1</property>                
+              </packing>
+            </child>
             <child>
               <object class="GtkStack" id="mode_stack">
                 <property name="visible">True</property>
@@ -68,204 +92,47 @@
                 <child>
                   <object class="GtkGrid" id="format_stack_child">
                     <property name="visible">True</property>
-                    <property name="margin">10</property>
+                    <property name="margin-left">40</property>
+                    <property name="margin-right">40</property>
+                    <property name="margin-top">0</property>
+                    <property name="margin-bottom">10</property>
                     <property name="row-spacing">6</property>
                     <property name="column-spacing">6</property>
                     <child>
-                      <object class="GtkBox" id="hbox3">
+                      <object class="GtkBox">
                         <property name="orientation">horizontal</property>
-                        <property name="spacing">15</property>
+                        <property name="spacing">0</property>
                         <property name="visible">True</property>
                         <property name="halign">center</property>
                         <child>
-                          <object class="GtkRadioButton" id="new_name_button">
-                            <property name="label" translatable="yes">_New Name</property>
+                          <object class="GtkEntry" id="name_entry">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="use_underline">True</property>
-                            <property name="active">True</property>
-                            <signal name="toggled" handler="batch_rename_format_mode_changed" swapped="yes" />
+                            <property name="width_request">400</property>
+                            <property name="hexpand">False</property>
+                            <property name="activates-default">True</property>
+                            <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
+                            <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
                           </object>
                         </child>
                         <child>
-                          <object class="GtkRadioButton" id="append_button">
-                            <property name="label" translatable="yes">_Append</property>
+                          <object class="GtkPopover" id="add_popover">
                             <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="use_underline">True</property>
-                            <property name="active">False</property>
-                            <property name="group">new_name_button</property>
-                            <signal name="toggled" handler="batch_rename_format_mode_changed" swapped="yes" />
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkRadioButton" id="prepend_button">
-                            <property name="label" translatable="yes">_Prepend</property>
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="use_underline">True</property>
-                            <property name="active">False</property>
-                            <property name="group">new_name_button</property>
-                            <signal name="toggled" handler="batch_rename_format_mode_changed" swapped="yes" />
+                            <child>
+                              <object class="GtkLabel" id="_label">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">Replace With</property>
+                                <property name="can_focus">False</property>
+                                <property name="sensitive">False</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
                       <packing>
                         <property name="left-attach">0</property>
                         <property name="top-attach">0</property>
-                        <property name="width">6</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkEntry" id="name_entry">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="width_request">550</property>
-                        <property name="hexpand">False</property>
-                        <property name="activates-default">True</property>
-                        <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
-                        <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
-                      </object>
-                      <packing>
-                        <property name="left-attach">1</property>
-                        <property name="top-attach">1</property>
                         <property name="width">5</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="name_label">
-                      <property name="visible">True</property>
-                      <property name="label" translatable="yes">Name:</property>
-                      <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">0</property>
-                        <property name="top-attach">1</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="where_label">
-                      <property name="visible">True</property>
-                      <property name="label" translatable="yes">Where</property>
-                      <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">3</property>
-                        <property name="top-attach">2</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="add_label">
-                      <property name="visible">True</property>
-                      <property name="label" translatable="yes">Add</property>
-                      <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">0</property>
-                        <property name="top-attach">2</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkBox" id="vbox3">
-                        <property name="orientation">vertical</property>
-                        <property name="spacing">6</property>
-                        <property name="visible">True</property>
-                        <property name="halign">center</property>
-                        <child>
-                          <object class="GtkRadioButton" id="after">
-                            <property name="label" translatable="yes">_After Name</property>
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="use_underline">True</property>
-                            <property name="active">False</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkRadioButton" id="before">
-                            <property name="label" translatable="yes">_Before Name</property>
-                            <property name="visible">True</property>
-                            <property name="can_focus">True</property>
-                            <property name="receives_default">False</property>
-                            <property name="use_underline">True</property>
-                            <property name="active">False</property>
-                            <property name="group">after</property>
-                          </object>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="left-attach">3</property>
-                        <property name="top-attach">3</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                     <child>
-                      <object class="GtkBox" id="vbox4">
-                        <property name="orientation">vertical</property>
-                        <property name="spacing">6</property>
-                        <property name="visible">True</property>
-                        <property name="halign">center</property>
-                        <child>
-                          <object class="GtkCheckButton" id="index">
-                            <property name="label" translatable="yes">Index</property>
-                            <property name="visible">True</property>
-                            <property name="active">False</property>
-                            <property name="can_focus">True</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkCheckButton" id="padding">
-                            <property name="label" translatable="yes">Zero padding</property>
-                            <property name="visible">True</property>
-                            <property name="active">False</property>
-                            <property name="can_focus">True</property>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="GtkCheckButton" id="date">
-                            <property name="label" translatable="yes">Date</property>
-                            <property name="visible">True</property>
-                            <property name="active">False</property>
-                            <property name="can_focus">True</property>
-                          </object>
-                        </child>
-                      </object>
-                      <packing>
-                        <property name="left-attach">0</property>
-                        <property name="top-attach">3</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkLabel" id="start_at">
-                      <property name="visible">True</property>
-                      <property name="label" translatable="yes">Start at</property>
-                      <property name="can_focus">False</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">0</property>
-                        <property name="top-attach">4</property>
-                        <property name="width">1</property>
-                      </packing>
-                    </child>
-                    <child>
-                      <object class="GtkSpinButton" id="spinbutton1">
-                        <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="width-chars">2</property>
-                        <property name="max-width-chars">2</property>
-                        <property name="adjustment">adjustment</property>
-                      </object>
-                      <packing>
-                        <property name="left-attach">1</property>
-                        <property name="top-attach">4</property>
-                        <property name="width">1</property>
                       </packing>
                     </child>
                   </object>
@@ -277,14 +144,18 @@
                 <child>
                   <object class="GtkGrid" id="replace_stack_child">
                     <property name="visible">True</property>
-                    <property name="margin">10</property>
+                    <property name="margin-left">40</property>
+                    <property name="margin-right">40</property>
+                    <property name="margin-top">0</property>
+                    <property name="margin-bottom">10</property>
                     <property name="row-spacing">6</property>
                     <property name="column-spacing">6</property>
                     <child>
-                      <object class="GtkLabel" id="find_label">
+                      <object class="GtkLabel" id="existing_text_label">
                         <property name="visible">True</property>
-                        <property name="label" translatable="yes">Replace:</property>
+                        <property name="label" translatable="yes">Existing Text</property>
                         <property name="can_focus">False</property>
+                        <property name="sensitive">False</property>
                       </object>
                         <packing>
                           <property name="left-attach">0</property>
@@ -296,7 +167,7 @@
                       <object class="GtkEntry" id="find_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="width_request">275</property>
+                        <property name="width_request">400</property>
                         <property name="hexpand">False</property>
                         <property name="activates-default">True</property>
                         <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
@@ -311,12 +182,13 @@
                     <child>
                       <object class="GtkLabel" id="replace_label">
                         <property name="visible">True</property>
-                        <property name="label" translatable="yes">With:</property>
+                        <property name="label" translatable="yes">Replace With</property>
                         <property name="can_focus">False</property>
+                        <property name="sensitive">False</property>
                       </object>
                         <packing>
-                          <property name="left-attach">4</property>
-                          <property name="top-attach">0</property>
+                          <property name="left-attach">0</property>
+                          <property name="top-attach">1</property>
                           <property name="width">1</property>
                         </packing>
                     </child>
@@ -324,13 +196,13 @@
                       <object class="GtkEntry" id="replace_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="width_request">275</property>
+                        <property name="width_request">400</property>
                         <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
                         <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
                       </object>
                         <packing>
-                          <property name="left-attach">6</property>
-                          <property name="top-attach">0</property>
+                          <property name="left-attach">1</property>
+                          <property name="top-attach">1</property>
                           <property name="width">3</property>
                         </packing>
                     </child>
@@ -338,16 +210,6 @@
                   <packing>
                     <property name="name">replace</property>
                     <property name="title" translatable="yes">Replace</property>
-                  </packing>
-                </child>
-                <!--Metadata mode (nonexistent yet)-->
-                <child>
-                  <object class="GtkBox" id="metadata_stack_child">
-                        <property name="visible">True</property>
-                  </object>
-                  <packing>
-                    <property name="name">metadata</property>
-                    <property name="title" translatable="yes">Metadata</property>
                   </packing>
                 </child>
               </object>
@@ -358,43 +220,20 @@
               </packing>
             </child>
             <child>
-              <object class="GtkStack" id="label_stack">
+              <object class="GtkScrolledWindow">
+                <property name="height_request">250</property>
                 <property name="visible">True</property>
-                <property name="can_focus">False</property>
+                <property name="can_focus">True</property>
+                <property name="hexpand">False</property>
+                <property name="shadow_type">in</property>
                 <child>
-                  <object class="GtkLabel" id="error_label">
+                  <object class="GtkViewport">
                     <property name="visible">True</property>
-                    <property name="halign">start</property>
                     <property name="can_focus">False</property>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkExpander" id="expander">
-                    <property name="visible">True</property>
-                    <property name="valign">center</property>
-                    <child type="label">
-                      <object class="GtkLabel" id="expander-label"/>
-                    </child>
                     <child>
-                      <object class="GtkScrolledWindow">
-                        <property name="height_request">100</property>
-                        <property name="width_request">100</property>
+                      <object class="GtkListBox" id="conflict_listbox">
                         <property name="visible">True</property>
-                        <property name="can_focus">True</property>
-                        <property name="hexpand">False</property>
-                        <property name="shadow_type">in</property>
-                        <child>
-                          <object class="GtkViewport">
-                            <property name="visible">True</property>
-                            <property name="can_focus">False</property>
-                            <child>
-                              <object class="GtkListBox" id="conflict_listbox">
-                                <property name="visible">True</property>
-                                <property name="can_focus">False</property>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
+                        <property name="can_focus">False</property>
                       </object>
                     </child>
                   </object>
@@ -405,6 +244,13 @@
                 <property name="top-attach">2</property>
                 <property name="width">8</property>
               </packing>
+            </child>
+            <child>
+              <object class="GtkLabel" id="error_label">
+                <property name="visible">False</property>
+                <property name="halign">start</property>
+                <property name="can_focus">False</property>
+              </object>
             </child>
           </object>
         </child>
