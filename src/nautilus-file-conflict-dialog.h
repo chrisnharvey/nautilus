@@ -65,10 +65,25 @@ enum
 
 GType nautilus_file_conflict_dialog_get_type (void) G_GNUC_CONST;
 
-GtkWidget* nautilus_file_conflict_dialog_new              (GtkWindow *parent,
-							   GFile *source,
-							   GFile *destination,
-							   GFile *dest_dir);
+NautilusFileConflictDialog* nautilus_file_conflict_dialog_new (GtkWindow *parent);
+
+void nautilus_file_conflict_dialog_set_text (NautilusFileConflictDialog *fcd,
+                                             gchar *primary_text,
+                                             gchar *secondary_text);
+void nautilus_file_conflict_dialog_set_images (NautilusFileConflictDialog *fcd,
+                                               GdkPixbuf *source_pixbuf,
+                                               GdkPixbuf *destination_pixbuf);
+void nautilus_file_conflict_dialog_set_file_labels (NautilusFileConflictDialog *fcd,
+                                                    gchar *destination_label,
+                                                    gchar *source_label);
+void nautilus_file_conflict_dialog_set_conflict_name (NautilusFileConflictDialog *fcd,
+                                                      gchar *conflict_name);
+void nautilus_file_conflict_dialog_set_replace_button_label (NautilusFileConflictDialog *fcd,
+                                                             gchar *label);
+
+void nautilus_file_conflict_dialog_disable_skip (NautilusFileConflictDialog *fcd);
+void nautilus_file_conflict_dialog_disable_apply_to_all (NautilusFileConflictDialog *fcd);
+
 char*      nautilus_file_conflict_dialog_get_new_name     (NautilusFileConflictDialog *dialog);
 gboolean   nautilus_file_conflict_dialog_get_apply_to_all (NautilusFileConflictDialog *dialog);
 

@@ -51,6 +51,7 @@
 #include <gtk/gtk.h>
 #include <gio/gio.h>
 #include <glib.h>
+#include "nautilus-conflict-manager.h"
 #include "nautilus-file-changes-queue.h"
 #include "nautilus-file-private.h"
 #include "nautilus-global-preferences.h"
@@ -4408,97 +4409,33 @@ typedef struct {
 	GCond cond;
 } ConflictDialogData;
 
-static gboolean
-do_run_conflict_dialog (gpointer _data)
+static FileConflictResponse *
+handle_copy_move_conflict (CommonJob *job,
+                           GFile     *src,
+                           GFile     *dest,
+                           GFile     *dest_dir)
 {
-	ConflictDialogData *data = _data;
-	GtkWidget *dialog;
-	int response;
+        FileConflictResponse *response;
 
-	g_mutex_lock (&data->mutex);
+        g_timer_stop (job->time);
+        nautilus_progress_info_pause (job->progress);
 
-	dialog = nautilus_file_conflict_dialog_new (data->parent,
-						    data->src,
-						    data->dest,
-						    data->dest_dir);
-	response = gtk_dialog_run (GTK_DIALOG (dialog));
+        response = copy_move_file_conflict_ask_user_action (job->parent_window,
+                                                            src,
+                                                            dest,
+                                                            dest_dir);
 
-	if (response == CONFLICT_RESPONSE_RENAME) {
-		data->resp_data->new_name = 
-			nautilus_file_conflict_dialog_get_new_name (NAUTILUS_FILE_CONFLICT_DIALOG (dialog));
-	} else if (response != GTK_RESPONSE_CANCEL &&
-		   response != GTK_RESPONSE_NONE) {
-		   data->resp_data->apply_to_all =
-			   nautilus_file_conflict_dialog_get_apply_to_all 
-				(NAUTILUS_FILE_CONFLICT_DIALOG (dialog));
-	}
+        nautilus_progress_info_resume (job->progress);
+        g_timer_continue (job->time);
 
-	data->resp_data->id = response;
-	data->completed = TRUE;
-
-	gtk_widget_destroy (dialog);
-
-	g_cond_signal (&data->cond);
-	g_mutex_unlock (&data->mutex);
-
-	return FALSE;
-}
-
-static ConflictResponseData *
-run_conflict_dialog (CommonJob *job,
-		     GFile *src,
-		     GFile *dest,
-		     GFile *dest_dir)
-{
-	ConflictDialogData *data;
-	ConflictResponseData *resp_data;
-
-	g_timer_stop (job->time);
-
-	data = g_slice_new0 (ConflictDialogData);
-	data->parent = job->parent_window;
-	data->src = src;
-	data->dest = dest;
-	data->dest_dir = dest_dir;
-
-	resp_data = g_slice_new0 (ConflictResponseData);
-	resp_data->new_name = NULL;
-	data->resp_data = resp_data;
-
-	data->completed = FALSE;
-	g_mutex_init (&data->mutex);
-	g_cond_init (&data->cond);
-
-	nautilus_progress_info_pause (job->progress);
-
-	g_mutex_lock (&data->mutex);
-
-	g_main_context_invoke (NULL,
-	                       do_run_conflict_dialog,
-	                       data);
-
-	while (!data->completed) {
-		g_cond_wait (&data->cond, &data->mutex);
-	}
-
-	nautilus_progress_info_resume (job->progress);
-
-	g_mutex_unlock (&data->mutex);
-	g_mutex_clear (&data->mutex);
-	g_cond_clear (&data->cond);
-
-	g_slice_free (ConflictDialogData, data);
-
-	g_timer_continue (job->time);
-
-	return resp_data;
+        return response;
 }
 
 static void
-conflict_response_data_free (ConflictResponseData *data)
+conflict_response_data_free (FileConflictResponse *data)
 {
 	g_free (data->new_name);
-	g_slice_free (ConflictResponseData, data);
+	g_slice_free (FileConflictResponse, data);
 }
 
 static GFile *
@@ -4745,7 +4682,7 @@ copy_move_file (CopyMoveJob *copy_job,
 	if (!overwrite &&
 	    IS_IO_ERROR (error, EXISTS)) {
 		gboolean is_merge;
-		ConflictResponseData *response;
+		FileConflictResponse *response;
 
 		g_error_free (error);
 
@@ -4771,7 +4708,7 @@ copy_move_file (CopyMoveJob *copy_job,
 			goto out;
 		}
 
-		response = run_conflict_dialog (job, src, dest, dest_dir);	
+		response = handle_copy_move_conflict (job, src, dest, dest_dir);
 
 		if (response->id == GTK_RESPONSE_CANCEL ||
 		    response->id == GTK_RESPONSE_DELETE_EVENT) {
@@ -5372,7 +5309,7 @@ move_file_prepare (CopyMoveJob *move_job,
 	else if (!overwrite &&
 		 IS_IO_ERROR (error, EXISTS)) {
 		gboolean is_merge;
-		ConflictResponseData *response;
+		FileConflictResponse *response;
 		
 		g_error_free (error);
 
@@ -5391,7 +5328,7 @@ move_file_prepare (CopyMoveJob *move_job,
 			goto out;
 		}
 
-		response = run_conflict_dialog (job, src, dest, dest_dir);
+		response = handle_copy_move_conflict (job, src, dest, dest_dir);
 
 		if (response->id == GTK_RESPONSE_CANCEL ||
 		    response->id == GTK_RESPONSE_DELETE_EVENT) {
