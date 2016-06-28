@@ -1,6 +1,7 @@
 #include "nautilus-batch-rename.h"
 #include "nautilus-batch-rename-utilities.h"
 #include "nautilus-files-view.h"
+#include "nautilus-file.h"
 
 #include <glib.h>
 #include <gtk/gtk.h>
@@ -200,4 +201,70 @@ concat(gchar *s1, gchar *s2)
     memcpy(result + strlen(s1), s2, strlen(s2) + 1);
 
     return result;
+}
+
+gint
+compare_files_by_name_ascending (NautilusFile *f1,
+                                 NautilusFile *f2)
+{
+        if (f1 == f2)
+                return 0;
+
+        if (strcmp (nautilus_file_get_name (f1), nautilus_file_get_name (f2)) >= 0) {
+                return 1;
+        }
+        return -1;
+}
+
+gint
+compare_files_by_name_descending (NautilusFile *f1,
+                                  NautilusFile *f2)
+{
+        if (f1 == f2)
+                return 0;
+
+        if (strcmp (nautilus_file_get_name (f1), nautilus_file_get_name (f2)) >= 0) {
+                return -1;
+        }
+        return 1;
+}
+
+gint
+compare_files_by_first_modified (NautilusFile *f1,
+                                 NautilusFile *f2)
+{
+        return nautilus_file_compare_for_sort (f1,f2,
+                                                NAUTILUS_FILE_SORT_BY_MTIME,
+                                                FALSE, FALSE);
+}
+
+gint
+compare_files_by_last_modified (NautilusFile *f1,
+                                NautilusFile *f2)
+{
+        return nautilus_file_compare_for_sort (f1,f2,
+                                                NAUTILUS_FILE_SORT_BY_MTIME,
+                                                FALSE, TRUE);
+}
+
+GList*
+nautilus_batch_rename_sort (GList *selection,
+                            SortingMode mode)
+{
+        if (mode == ORIGINAL_ASCENDING)
+                return g_list_sort (selection, compare_files_by_name_ascending);
+
+        if (mode == ORIGINAL_DESCENDING) {
+                return g_list_sort (selection, compare_files_by_name_descending);
+        }
+
+        if (mode == FIRST_MODIFIED) {
+            return g_list_sort (selection, compare_files_by_first_modified);
+        }
+
+        if (mode == LAST_MODIFIED) {
+            return g_list_sort (selection, compare_files_by_last_modified);
+        }
+
+        return NULL;
 }

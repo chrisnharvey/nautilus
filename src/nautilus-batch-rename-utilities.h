@@ -26,4 +26,7 @@ GList* list_has_duplicates      (NautilusFilesView           *view,
 gchar* concat                   (gchar                       *s1,
                                  gchar                       *s2);
 
+GList* nautilus_batch_rename_sort (GList       *selection,
+                                   SortingMode mode);
+
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

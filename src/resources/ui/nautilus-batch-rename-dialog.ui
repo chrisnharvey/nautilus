@@ -118,8 +118,13 @@
                         <child>
                           <object class="GtkToggleButton" id="add_button">
                             <property name="visible">True</property>
-                            <property name="label" translatable="yes">+ Add</property>
                             <signal name="toggled" handler="add_button_clicked" swapped="yes" />
+                            <child>
+                              <object class="GtkLabel" id="add_button_label">
+                                <property name="visible">True</property>
+                                <property name="can_focus">False</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
@@ -130,7 +135,7 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkLabel" id="numbering_order_label">
+                      <object class="GtkLabel" id="numbering_order">
                         <property name="visible">True</property>
                         <property name="label" translatable="yes">Automatic Numbering Order</property>
                         <property name="can_focus">False</property>
@@ -143,14 +148,30 @@
                       </packing>
                     </child>
                     <child>
-                      <object class="GtkToggleButton" id="numbering_order_button">
+                      <object class="GtkMenuButton" id="numbering_order_button">
                         <property name="visible">True</property>
-                        <signal name="toggled" handler="numbering_order_button_clicked" swapped="yes" />
+                        <property name="sensitive">True</property>
+                        <property name="use-popover">True</property>
+                        <property name="menu_model">numbering_order_menu</property>
                         <child>
-                          <object class="GtkLabel" id="numering_order">
+                          <object class="GtkBox">
                             <property name="visible">True</property>
-                            <property name="label" translatable="yes">Original name (Ascending)</property>
-                            <property name="can_focus">False</property>
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">15</property>
+                            <child>
+                              <object class="GtkLabel" id="numbering_order_label">
+                                <property name="visible">True</property>
+                                <property name="label" translatable="yes">Original name (Ascending)  </property>
+                                <property name="can_focus">False</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkImage" id="action_icon">
+                                <property name="visible">True</property>
+                                <property name="icon-name">pan-down-symbolic</property>
+                                <property name="icon-size">1</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>
@@ -282,13 +303,7 @@
       </object>
     </child>
   </template>
-  <object class="GtkAdjustment" id="adjustment">
-    <property name="upper">100000000</property>
-    <property name="lower">0</property>
-    <property name="value">1</property>
-    <property name="step_increment">1</property>
-    <property name="page_increment">10</property>
-  </object>
+
   <object class="GtkPopover" id="add_popover">
     <property name="relative-to">add_button</property>
     <property name="position">bottom</property>
@@ -302,17 +317,32 @@
       </object>
     </child>
   </object>
-  <object class="GtkPopover" id="numbering_order_popover">
-    <property name="relative-to">numbering_order_button</property>
-    <property name="position">bottom</property>
-    <signal name="closed" handler="numbering_order_popover_closed" swapped="yes" />
-    <child>
-      <object class="GtkLabel">
-        <property name="visible">True</property>
-        <property name="label" translatable="yes">some other ordering option</property>
-        <property name="can_focus">False</property>
-        <property name="sensitive">True</property>
-      </object>
-    </child>
+
+  <object class="GtkImage" id="done_image">
+    <property name="visible">True</property>
+    <property name="icon_name">object-select-symbolic</property>
   </object>
+
+  <menu id="numbering_order_menu">
+    <section>
+      <item>
+        <attribute name="id">ascending</attribute>
+        <attribute name="label" translatable="yes">Original name (Ascending) </attribute>
+        <attribute name="action">dialog.numbering-order-changed-ascending</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Original name (Descending)</attribute>
+        <attribute name="action">dialog.numbering-order-changed-descending</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">First Modified</attribute>
+        <attribute name="action">dialog.numbering-order-changed-first-modified</attribute>
+        <attribute name="icon">object-select-symbolic</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Last Modified</attribute>
+        <attribute name="action">dialog.numbering-order-changed-last-modified</attribute>
+      </item>
+    </section>
+  </menu>
 </interface>
