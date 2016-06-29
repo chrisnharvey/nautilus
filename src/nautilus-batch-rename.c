@@ -52,6 +52,8 @@ struct _NautilusBatchRename
         GtkWidget               *add_button_label;
         GtkWidget               *numbering_order_label;
         GtkWidget               *scrolled_window;
+        GtkWidget               *numbering_order_popover;
+        GtkWidget               *numbering_order_button;
 
         GList                   *listbox_rows;
 
@@ -238,7 +240,7 @@ create_row_for_label (const gchar *new_text,
         g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
         icon = gtk_image_new_from_icon_name ("media-playlist-consecutive-symbolic",
-					     GTK_ICON_SIZE_SMALL_TOOLBAR);
+                                            GTK_ICON_SIZE_SMALL_TOOLBAR);
 
         box = g_object_new (GTK_TYPE_BOX,
                             "orientation",GTK_ORIENTATION_HORIZONTAL,
@@ -451,6 +453,21 @@ add_popover_closed (NautilusBatchRename *dialog)
 }
 
 static void
+numbering_order_button_clicked (NautilusBatchRename *dialog)
+{
+        if (gtk_widget_is_visible (dialog->numbering_order_popover))
+                gtk_widget_set_visible (dialog->numbering_order_popover, FALSE);
+        else
+                gtk_widget_set_visible (dialog->numbering_order_popover, TRUE);
+}
+
+static void
+numbering_order_popover_closed (NautilusBatchRename *dialog)
+{
+        gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (dialog->numbering_order_button), FALSE);
+}
+
+static void
 nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
 {
         GAction *action;
@@ -464,14 +481,6 @@ nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
         gtk_widget_insert_action_group (GTK_WIDGET (dialog),
                                         "dialog",
                                         G_ACTION_GROUP (dialog->action_group));
-
-        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                             "numbering-order-changed-ascending");
-        g_simple_action_set_enabled (G_SIMPLE_ACTION (action),TRUE);
-
-        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                             "numbering-order-changed-descending");
-        g_simple_action_set_enabled (G_SIMPLE_ACTION (action),TRUE);
 }
 
 static void
@@ -501,6 +510,8 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_button_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, scrolled_window);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_popover);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_button);
 
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_entry_on_changed);
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_dialog_on_closed);
@@ -508,6 +519,8 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_mode_changed);
         gtk_widget_class_bind_template_callback (widget_class, add_button_clicked);
         gtk_widget_class_bind_template_callback (widget_class, add_popover_closed);
+        gtk_widget_class_bind_template_callback (widget_class, numbering_order_button_clicked);
+        gtk_widget_class_bind_template_callback (widget_class, numbering_order_popover_closed);
 }
 
 GtkWidget*
