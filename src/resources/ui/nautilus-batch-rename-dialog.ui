@@ -266,11 +266,12 @@
               </packing>
             </child>
             <child>
-              <object class="GtkScrolledWindow">
+              <object class="GtkScrolledWindow" id="scrolled_window">
                 <property name="height_request">250</property>
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="hexpand">False</property>
+                <property name="vexpand">False</property>
                 <property name="shadow_type">in</property>
                 <child>
                   <object class="GtkViewport">
@@ -337,7 +338,6 @@
       <item>
         <attribute name="label" translatable="yes">First Modified</attribute>
         <attribute name="action">dialog.numbering-order-changed-first-modified</attribute>
-        <attribute name="icon">object-select-symbolic</attribute>
       </item>
       <item>
         <attribute name="label" translatable="yes">Last Modified</attribute>

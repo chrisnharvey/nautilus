@@ -51,6 +51,7 @@ struct _NautilusBatchRename
         GtkWidget               *add_popover;
         GtkWidget               *add_button_label;
         GtkWidget               *numbering_order_label;
+        GtkWidget               *scrolled_window;
 
         GList                   *listbox_rows;
 
@@ -229,18 +230,15 @@ create_row_for_label (const gchar *new_text,
         GtkWidget *row;
         GtkWidget *label_new;
         GtkWidget *label_old;
-        GtkWidget *arrow;
         GtkWidget *box;
+        GtkWidget *icon;
 
         row = gtk_list_box_row_new ();
 
         g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
-        arrow = g_object_new (GTK_TYPE_ARROW,
-                              "hexpand", TRUE,
-                              "xalign", 0.0,
-                              "margin-start", 6,
-                              NULL);
+        icon = gtk_image_new_from_icon_name ("media-playlist-consecutive-symbolic",
+					     GTK_ICON_SIZE_SMALL_TOOLBAR);
 
         box = g_object_new (GTK_TYPE_BOX,
                             "orientation",GTK_ORIENTATION_HORIZONTAL,
@@ -266,7 +264,7 @@ create_row_for_label (const gchar *new_text,
         gtk_label_set_max_width_chars (GTK_LABEL (label_old), MAX_DISPLAY_LEN);
 
         gtk_box_pack_end (GTK_BOX (box), label_new, TRUE, FALSE, 0);
-        gtk_box_pack_end (GTK_BOX (box), arrow, TRUE, FALSE, 0);
+        gtk_box_pack_end (GTK_BOX (box), icon, TRUE, FALSE, 0);
         gtk_box_pack_end (GTK_BOX (box), label_old, TRUE, FALSE, 0);
         gtk_list_box_row_set_selectable (GTK_LIST_BOX_ROW (row), TRUE);
 
@@ -502,6 +500,7 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_popover);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_button_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_label);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, scrolled_window);
 
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_entry_on_changed);
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_dialog_on_closed);
