@@ -335,7 +335,8 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="text" translatable="yes">Original name (Ascending) </property>
-            <property name="action-name">dialog.numbering-order-changed-ascending</property>
+            <property name="action-name">dialog.numbering-order-changed</property>
+            <property name="action-target">'name-ascending'</property>
           </object>
         </child>
         <child>
@@ -343,7 +344,8 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="text" translatable="yes">Original name (Descending) </property>
-            <property name="action-name">dialog.numbering-order-changed-descending</property>
+            <property name="action-name">dialog.numbering-order-changed</property>
+            <property name="action-target">'name-descending'</property>
           </object>
         </child>
         <child>
@@ -351,7 +353,8 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="text" translatable="yes">First Modified</property>
-            <property name="action-name">dialog.numbering-order-changed-first-modified</property>
+            <property name="action-name">dialog.numbering-order-changed</property>
+            <property name="action-target">'first-modified'</property>
           </object>
         </child>
         <child>
@@ -359,7 +362,8 @@
             <property name="visible">True</property>
             <property name="can_focus">True</property>
             <property name="text" translatable="yes">Last Modified</property>
-            <property name="action-name">dialog.numbering-order-changed-last-modified</property>
+            <property name="action-name">dialog.numbering-order-changed</property>
+            <property name="action-target">'last-modified'</property>
           </object>
         </child>
       </object>

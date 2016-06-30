@@ -72,6 +72,7 @@ static void     file_names_widget_entry_on_changed      (NautilusBatchRename    
 
 G_DEFINE_TYPE (NautilusBatchRename, nautilus_batch_rename, GTK_TYPE_DIALOG);
 
+/*
 static void
 numbering_order_changed_descending (GSimpleAction       *action,
                                     GVariant            *state,
@@ -86,7 +87,7 @@ numbering_order_changed_descending (GSimpleAction       *action,
         gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
                              "Original name (Descending)");
 
-        /* update display text */
+
         file_names_widget_entry_on_changed (dialog);
 }
 
@@ -104,7 +105,7 @@ numbering_order_changed_ascending (GSimpleAction       *action,
         gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
                              "Original name (Ascending)  ");
 
-        /* update display text */
+
         file_names_widget_entry_on_changed (dialog);
 }
 
@@ -122,33 +123,35 @@ numbering_order_changed_first_modified (GSimpleAction       *action,
         gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
                              "First Modified                       ");
 
-        /* update display text */
+
         file_names_widget_entry_on_changed (dialog);
-}
+}*/
 
 static void
-numbering_order_changed_last_modified (GSimpleAction       *action,
-                                       GVariant            *state,
-                                       gpointer            user_data)
+numbering_order_changed (GSimpleAction       *action,
+                         GVariant            *value,
+                         gpointer            user_data)
 {
         NautilusBatchRename *dialog;
+        const gchar *target_name;
 
         dialog = NAUTILUS_BATCH_RENAME (user_data);
-
         dialog->selection = nautilus_batch_rename_sort (dialog->selection, LAST_MODIFIED);
+
+        target_name = g_variant_get_string (value, NULL);
+        g_message("%s",target_name);
 
         gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
                              "Last Modified                       ");
+
+        //g_simple_action_set_state (action, state);
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
 }
 
 const GActionEntry dialog_entries[] = {
-        { "numbering-order-changed-descending",  numbering_order_changed_descending },
-        { "numbering-order-changed-ascending",  numbering_order_changed_ascending },
-        { "numbering-order-changed-first-modified",  numbering_order_changed_first_modified },
-        { "numbering-order-changed-last-modified",  numbering_order_changed_last_modified },
+        { "numbering-order-changed",  numbering_order_changed },
 };
 
 static GList*
@@ -470,8 +473,6 @@ numbering_order_popover_closed (NautilusBatchRename *dialog)
 static void
 nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
 {
-        GAction *action;
-
         dialog->action_group = G_ACTION_GROUP (g_simple_action_group_new ());
 
         g_action_map_add_action_entries (G_ACTION_MAP (dialog->action_group),
