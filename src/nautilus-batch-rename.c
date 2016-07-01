@@ -38,12 +38,10 @@ struct _NautilusBatchRename
         GtkWidget               *cancel_button;
         GtkWidget               *conflict_listbox;
         GtkWidget               *error_label;
-        //GtkWidget               *expander;
         GtkWidget               *name_entry;
         GtkWidget               *rename_button;
         GtkWidget               *find_entry;
         GtkWidget               *mode_stack;
-       // GtkWidget               *label_stack;
         GtkWidget               *replace_entry;
         GtkWidget               *format_mode_button;
         GtkWidget               *replace_mode_button;
@@ -64,6 +62,8 @@ struct _NautilusBatchRename
         GtkWidget               *expander_label;
 
         GActionGroup            *action_group;
+
+        GMenu                   *numbering_order_menu;
 };
 
 static void     batch_rename_dialog_on_closed           (GtkDialog              *dialog);
@@ -71,61 +71,6 @@ static void     file_names_widget_entry_on_changed      (NautilusBatchRename    
 
 
 G_DEFINE_TYPE (NautilusBatchRename, nautilus_batch_rename, GTK_TYPE_DIALOG);
-
-/*
-static void
-numbering_order_changed_descending (GSimpleAction       *action,
-                                    GVariant            *state,
-                                    gpointer            user_data)
-{
-        NautilusBatchRename *dialog;
-
-        dialog = NAUTILUS_BATCH_RENAME (user_data);
-
-        dialog->selection = nautilus_batch_rename_sort (dialog->selection, ORIGINAL_DESCENDING);
-
-        gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
-                             "Original name (Descending)");
-
-
-        file_names_widget_entry_on_changed (dialog);
-}
-
-static void
-numbering_order_changed_ascending (GSimpleAction       *action,
-                                   GVariant            *state,
-                                   gpointer            user_data)
-{
-        NautilusBatchRename *dialog;
-
-        dialog = NAUTILUS_BATCH_RENAME (user_data);
-
-        dialog->selection = nautilus_batch_rename_sort (dialog->selection, ORIGINAL_ASCENDING);
-
-        gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
-                             "Original name (Ascending)  ");
-
-
-        file_names_widget_entry_on_changed (dialog);
-}
-
-static void
-numbering_order_changed_first_modified (GSimpleAction       *action,
-                                        GVariant            *state,
-                                        gpointer            user_data)
-{
-        NautilusBatchRename *dialog;
-
-        dialog = NAUTILUS_BATCH_RENAME (user_data);
-
-        dialog->selection = nautilus_batch_rename_sort (dialog->selection, FIRST_MODIFIED);
-
-        gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
-                             "First Modified                       ");
-
-
-        file_names_widget_entry_on_changed (dialog);
-}*/
 
 static void
 numbering_order_changed (GSimpleAction       *action,
@@ -136,22 +81,47 @@ numbering_order_changed (GSimpleAction       *action,
         const gchar *target_name;
 
         dialog = NAUTILUS_BATCH_RENAME (user_data);
-        dialog->selection = nautilus_batch_rename_sort (dialog->selection, LAST_MODIFIED);
 
         target_name = g_variant_get_string (value, NULL);
         g_message("%s",target_name);
 
-        gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
-                             "Last Modified                       ");
+        if (g_strcmp0 (target_name, "name-ascending") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "Original name (Ascending)  ");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection, ORIGINAL_ASCENDING);
+        }
 
-        //g_simple_action_set_state (action, state);
+        if (g_strcmp0 (target_name, "name-descending") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "Original name (Descending)");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                ORIGINAL_DESCENDING);
+        }
+
+        if (g_strcmp0 (target_name, "first-modified") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "First Modified                       ");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                FIRST_MODIFIED);
+        }
+
+        if (g_strcmp0 (target_name, "last-modified") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "Last Modified                       ");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                LAST_MODIFIED);
+        }
+
+        g_simple_action_set_state (action, value);
+
+        g_signal_emit_by_name (dialog->numbering_order_popover, "closed");
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
 }
 
 const GActionEntry dialog_entries[] = {
-        { "numbering-order-changed",  numbering_order_changed },
+        { "numbering-order-changed", NULL, "s", "'name-ascending'",  numbering_order_changed }
 };
 
 static GList*
@@ -194,12 +164,6 @@ rename_files_on_names_accepted (NautilusBatchRename *dialog,
 
         for (l1 = selection, l2 = new_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
                 file = NAUTILUS_FILE (l1->data);
-
-                /* Put it on the queue for reveal after the view acknowledges the change */
-                //do this sometime...
-                /*g_hash_table_insert (dialog->view->details->pending_reveal,
-                                     file,
-                                     GUINT_TO_POINTER (FALSE));*/
 
                 nautilus_rename_file (file, l2->data, NULL, NULL);
         }
@@ -317,12 +281,11 @@ static void
 file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 {
         gchar *entry_text;
-        //gchar *replace_text;
         gchar *file_name;
         GList *new_names;
         GList *duplicates;
         gchar *display_text = NULL;
-        gboolean singe_conflict;
+        gboolean single_conflict;
 
         if(dialog->selection == NULL)
                 return;
@@ -331,7 +294,7 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         duplicates = list_has_duplicates (dialog->view, new_names, dialog->selection);
 
         if (duplicates != NULL)
-                singe_conflict = (duplicates->next == NULL) ? TRUE:FALSE;
+                single_conflict = (duplicates->next == NULL) ? TRUE:FALSE;
 
         file_name = NULL;
         entry_text = NULL;
@@ -340,47 +303,12 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         if (duplicates != NULL) {
                 gtk_widget_set_sensitive (dialog->rename_button, FALSE);
 
-                /* check if there is more than one conflict */
-                /*if (!singe_conflict)
-                        gtk_expander_set_label (GTK_EXPANDER (dialog->expander),
-                                                "Multiple file conflicts");
-                else {
-                        file_name = concat ("File conflict: ", duplicates->data);
-
-                        if (strlen (file_name) >= MAX_DISPLAY_LEN) {
-                        gtk_label_set_label (GTK_LABEL (dialog->expander_label), file_name);
-
-                        gtk_expander_set_label_widget (GTK_EXPANDER (dialog->expander),
-                                                       dialog->expander_label);
-
-                        gtk_widget_show (dialog->expander_label);
-                        } else {
-                               gtk_label_set_label (GTK_LABEL (dialog->error_label), file_name);
-                        }
-                }*/
-
-                if (!singe_conflict || strlen (file_name) >= MAX_DISPLAY_LEN) {
-                       // gtk_expander_set_expanded (GTK_EXPANDER (dialog->expander), FALSE);
-                      //  gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack),
-                       //                              GTK_WIDGET (dialog->expander));
-                }
-
-                /* add name conflicts to the listbox */
-                //fill_conflict_listbox (dialog, duplicates);
-
-                g_free (file_name);
-
                 return;
         }
         else
                 /* re-enable the rename button if there are no more name conflicts */
-                if (duplicates == NULL && !gtk_widget_is_sensitive (dialog->rename_button)) {
-                        //gtk_expander_set_expanded (GTK_EXPANDER (dialog->expander), FALSE);
-
+                if (duplicates == NULL && !gtk_widget_is_sensitive (dialog->rename_button))
                         gtk_widget_set_sensitive (dialog->rename_button, TRUE);
-
-                        //gtk_stack_set_visible_child (GTK_STACK (dialog->label_stack), GTK_WIDGET (dialog->error_label));
-                }
 
         /* Update listbox that shows the result of the renaming for each file */
         fill_display_listbox (dialog, new_names);
@@ -390,7 +318,6 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 
         g_free (entry_text);
         g_free (file_name);
-        //g_free (replace_text);
         g_free (display_text);
 }
 
@@ -498,7 +425,6 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, cancel_button);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, conflict_listbox);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, error_label);
-        //gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, expander);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, name_entry);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, rename_button);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, find_entry);
@@ -513,6 +439,7 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, scrolled_window);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_popover);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_button);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_menu);
 
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_entry_on_changed);
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_dialog_on_closed);
@@ -545,9 +472,6 @@ nautilus_batch_rename_new (NautilusFilesView *view)
         gtk_label_set_ellipsize (GTK_LABEL (dialog->error_label), PANGO_ELLIPSIZE_END);
         gtk_label_set_max_width_chars (GTK_LABEL (dialog->error_label), MAX_DISPLAY_LEN);
 
-        //gtk_label_set_ellipsize (GTK_LABEL (dialog->expander_label), PANGO_ELLIPSIZE_END);
-        //gtk_label_set_max_width_chars (GTK_LABEL (dialog->expander_label), MAX_DISPLAY_LEN - 1);
-
         gtk_label_set_markup_with_mnemonic (GTK_LABEL (dialog->add_button_label),
                                             "<b>+</b> _Add");
 
@@ -561,6 +485,10 @@ nautilus_batch_rename_new (NautilusFilesView *view)
         dialog_title = malloc (25);
         sprintf (dialog_title, "Renaming %d files", files_nr);
         gtk_window_set_title (GTK_WINDOW (dialog), dialog_title);
+
+        gtk_popover_bind_model (GTK_POPOVER (dialog->numbering_order_popover),
+                                G_MENU_MODEL (dialog->numbering_order_menu),
+                                NULL);
 
         nautilus_batch_rename_initialize_actions (dialog);
 
@@ -581,8 +509,6 @@ nautilus_batch_rename_init (NautilusBatchRename *self)
                                 (GtkListBoxUpdateHeaderFunc) listbox_header_func,
                                 self,
                                 NULL);
-
-        //self->expander_label = gtk_label_new ("");
 
         self->mode = NAUTILUS_BATCH_RENAME_PREPEND;
 }

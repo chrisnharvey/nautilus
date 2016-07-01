@@ -204,47 +204,63 @@ concat(gchar *s1, gchar *s2)
 }
 
 gint
-compare_files_by_name_ascending (NautilusFile *f1,
-                                 NautilusFile *f2)
+compare_files_by_name_ascending (gconstpointer a,
+                                 gconstpointer b)
 {
-        if (f1 == f2)
-                return 0;
+        NautilusFile *f1;
+        NautilusFile *f2;
 
-        if (strcmp (nautilus_file_get_name (f1), nautilus_file_get_name (f2)) >= 0) {
-                return 1;
-        }
-        return -1;
-}
+        f1 = NAUTILUS_FILE (a);
+        f2 = NAUTILUS_FILE (b);
 
-gint
-compare_files_by_name_descending (NautilusFile *f1,
-                                  NautilusFile *f2)
-{
-        if (f1 == f2)
-                return 0;
-
-        if (strcmp (nautilus_file_get_name (f1), nautilus_file_get_name (f2)) >= 0) {
-                return -1;
-        }
-        return 1;
-}
-
-gint
-compare_files_by_first_modified (NautilusFile *f1,
-                                 NautilusFile *f2)
-{
         return nautilus_file_compare_for_sort (f1,f2,
-                                                NAUTILUS_FILE_SORT_BY_MTIME,
-                                                FALSE, FALSE);
+                                               NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                               FALSE, FALSE);
 }
 
 gint
-compare_files_by_last_modified (NautilusFile *f1,
-                                NautilusFile *f2)
+compare_files_by_name_descending (gconstpointer a,
+                                  gconstpointer b)
 {
+        NautilusFile *f1;
+        NautilusFile *f2;
+
+        f1 = NAUTILUS_FILE (a);
+        f2 = NAUTILUS_FILE (b);
+
         return nautilus_file_compare_for_sort (f1,f2,
-                                                NAUTILUS_FILE_SORT_BY_MTIME,
-                                                FALSE, TRUE);
+                                               NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
+                                               FALSE, TRUE);
+}
+
+gint
+compare_files_by_first_modified (gconstpointer a,
+                                 gconstpointer b)
+{
+        NautilusFile *f1;
+        NautilusFile *f2;
+
+        f1 = NAUTILUS_FILE (a);
+        f2 = NAUTILUS_FILE (b);
+
+        return nautilus_file_compare_for_sort (f1,f2,
+                                               NAUTILUS_FILE_SORT_BY_MTIME,
+                                               FALSE, FALSE);
+}
+
+gint
+compare_files_by_last_modified (gconstpointer a,
+                                gconstpointer b)
+{
+        NautilusFile *f1;
+        NautilusFile *f2;
+
+        f1 = NAUTILUS_FILE (a);
+        f2 = NAUTILUS_FILE (b);
+
+        return nautilus_file_compare_for_sort (f1,f2,
+                                               NAUTILUS_FILE_SORT_BY_MTIME,
+                                               FALSE, TRUE);
 }
 
 GList*

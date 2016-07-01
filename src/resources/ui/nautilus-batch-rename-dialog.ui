@@ -321,52 +321,38 @@
     <property name="visible">True</property>
     <property name="icon_name">object-select-symbolic</property>
   </object>
-  <object class="GtkPopoverMenu" id="numbering_order_popover">
-    <property name="relative-to">numbering_order_button</property>
+  <menu id="numbering_order_menu">
+    <section>
+      <item>
+        <attribute name="id">name_ascending</attribute>
+        <attribute name="label" translatable="yes">Original name (Ascending) </attribute>
+        <attribute name="action">dialog.numbering-order-changed</attribute>
+        <attribute name="target">name-ascending</attribute>
+      </item>
+      <item>
+        <attribute name="id">name_descending</attribute>
+        <attribute name="label" translatable="yes">Original name (Descending)</attribute>
+        <attribute name="action">dialog.numbering-order-changed</attribute>
+        <attribute name="target">name-descending</attribute>
+      </item>
+      <item>
+        <attribute name="id">first_modified</attribute>
+        <attribute name="label" translatable="yes">First Modified</attribute>
+        <attribute name="action">dialog.numbering-order-changed</attribute>
+        <attribute name="target">first-modified</attribute>
+      </item>
+      <item>
+        <attribute name="id">last_modified</attribute>
+        <attribute name="label" translatable="yes">Last Modified</attribute>
+        <attribute name="action">dialog.numbering-order-changed</attribute>
+        <attribute name="verb-icon">object-select-symbolic</attribute>
+        <attribute name="target">last-modified</attribute>
+      </item>
+    </section>
+  </menu>
+  <object class="GtkPopover" id="numbering_order_popover">
     <property name="position">bottom</property>
+    <property name="relative-to">numbering_order_button</property>
     <signal name="closed" handler="numbering_order_popover_closed" swapped="yes" />
-    <child>
-      <object class="GtkBox">
-        <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="orientation">vertical</property>
-        <child>
-          <object class="GtkModelButton" id="original_ascending">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="text" translatable="yes">Original name (Ascending) </property>
-            <property name="action-name">dialog.numbering-order-changed</property>
-            <property name="action-target">'name-ascending'</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="original_descending">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="text" translatable="yes">Original name (Descending) </property>
-            <property name="action-name">dialog.numbering-order-changed</property>
-            <property name="action-target">'name-descending'</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="first_modified">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="text" translatable="yes">First Modified</property>
-            <property name="action-name">dialog.numbering-order-changed</property>
-            <property name="action-target">'first-modified'</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkModelButton" id="last_modified">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="text" translatable="yes">Last Modified</property>
-            <property name="action-name">dialog.numbering-order-changed</property>
-            <property name="action-target">'last-modified'</property>
-          </object>
-        </child>
-      </object>
-    </child>
   </object>
 </interface>

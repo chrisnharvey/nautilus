@@ -29,4 +29,16 @@ gchar* concat                   (gchar                       *s1,
 GList* nautilus_batch_rename_sort (GList       *selection,
                                    SortingMode mode);
 
+gint compare_files_by_last_modified     (gconstpointer a,
+                                         gconstpointer b);
+
+gint compare_files_by_first_modified    (gconstpointer a,
+                                         gconstpointer b);
+
+gint compare_files_by_name_descending   (gconstpointer a,
+                                         gconstpointer b);
+
+gint compare_files_by_name_ascending    (gconstpointer a,
+                                         gconstpointer b);
+
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */
