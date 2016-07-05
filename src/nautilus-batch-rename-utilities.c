@@ -10,6 +10,11 @@
 
 #define MAX_DISPLAY_LEN 40
 
+typedef struct {
+        NautilusFile *file;
+        gint *position;
+} CreateDateElem;
+
 static gchar*
 batch_rename_append (gchar *file_name,
                      gchar *entry_text)
@@ -263,10 +268,31 @@ compare_files_by_last_modified (gconstpointer a,
                                                FALSE, TRUE);
 }
 
+gint
+compare_files_by_first_created (gconstpointer a,
+                                gconstpointer b)
+{
+        return *(((CreateDateElem*) a)->position) - *(((CreateDateElem*) b)->position);
+}
+
+gint
+compare_files_by_last_created (gconstpointer a,
+                               gconstpointer b)
+{
+        return *(((CreateDateElem*) b)->position) - *(((CreateDateElem*) a)->position);
+}
+
 GList*
 nautilus_batch_rename_sort (GList *selection,
-                            SortingMode mode)
+                            SortingMode mode,
+                            ...)
 {
+        GList *l,*l2;
+        va_list args;
+        GHashTable *hash_table;
+        NautilusFile *file;
+        GList *createDate_list, *createDate_list_sorted;
+
         if (mode == ORIGINAL_ASCENDING)
                 return g_list_sort (selection, compare_files_by_name_ascending);
 
@@ -282,5 +308,129 @@ nautilus_batch_rename_sort (GList *selection,
             return g_list_sort (selection, compare_files_by_last_modified);
         }
 
-        return NULL;
+        if (mode == FIRST_CREATED || mode == LAST_CREATED) {
+                va_start (args, mode);
+
+                hash_table = va_arg(args, GHashTable*);
+
+                createDate_list = NULL;
+
+                for (l = selection; l != NULL; l = l->next) {
+                        CreateDateElem *elem;
+                        elem = malloc (sizeof (CreateDateElem*));
+
+                        file = NAUTILUS_FILE (l->data);
+
+                        elem->file = file;
+                        elem->position = (gint*) g_hash_table_lookup (hash_table, nautilus_file_get_name (file));
+
+                        createDate_list = g_list_prepend (createDate_list, (gpointer) elem);
+                }
+
+                if (mode == FIRST_CREATED)
+                        createDate_list_sorted = g_list_sort (createDate_list,
+                                                              compare_files_by_first_created);
+                else
+                        createDate_list_sorted = g_list_sort (createDate_list,
+                                                              compare_files_by_last_created);
+
+                for (l = selection, l2 = createDate_list_sorted; l2 != NULL; l = l->next, l2 = l2->next) {
+                        CreateDateElem *elem = l2->data;
+                        l->data = elem->file;
+                }
+
+                va_end (args);
+                g_list_free (createDate_list);
+        }
+
+        return selection;
+}
+
+GHashTable*
+check_creation_date_for_selection (GList *selection)
+{
+        GError *error = NULL;
+        TrackerSparqlConnection *connection;
+        TrackerSparqlCursor *cursor;
+        gchar *filter1, *filter2, *sparql, *tmp;
+        GHashTable *hash_table;
+        GList *l;
+        gint i, *value;
+        NautilusFile *file;
+        gchar *query = "SELECT nfo:fileName(?file) nie:contentCreated(?file) WHERE { ?file a nfo:FileDataObject. ";
+
+        filter1 = malloc (150);
+        sprintf (filter1, "FILTER(tracker:uri-is-parent('%s', nie:url(?file)))",
+                 nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data)));
+
+        sparql = concat (query, filter1);
+
+        for (l = selection; l != NULL; l = l->next) {
+                filter2 = malloc (150);
+
+                file = NAUTILUS_FILE (l->data);
+
+                if (l == selection)
+                        sprintf (filter2, "FILTER (nfo:fileName(?file) = '%s' ", nautilus_file_get_name (file));
+                else
+                        sprintf (filter2, "|| nfo:fileName(?file) = '%s'", nautilus_file_get_name (file));
+
+                tmp = sparql;
+                sparql = concat (sparql, filter2);
+
+                g_free (tmp);
+                g_free (filter2);
+        }
+
+        tmp = sparql;
+        sparql = concat (sparql, ")} ORDER BY ASC(nie:contentCreated(?file))");
+
+        connection = tracker_sparql_connection_get (NULL, &error);
+        if (!connection)
+            return NULL;
+
+        /* Make a synchronous query to the store */
+        cursor = tracker_sparql_connection_query (connection,
+                                                  sparql,
+                                                  NULL,
+                                                  &error);
+
+        if (error)
+                return NULL;
+
+        /* Check results */
+        if (!cursor) {
+                return NULL;
+        } else {
+                hash_table = g_hash_table_new_full (g_str_hash,
+                                                    g_str_equal,
+                                                    (GDestroyNotify) g_free,
+                                                    (GDestroyNotify) g_free);
+                i = 0;
+
+                /* Iterate, synchronously, the results */
+                while (tracker_sparql_cursor_next (cursor, NULL, &error)) {
+                        value = malloc (sizeof(int));
+                        *value = i++;
+
+                        g_hash_table_insert (hash_table,
+                                             strdup(tracker_sparql_cursor_get_string (cursor, 0, NULL)),
+                                             value);
+
+                        if (tracker_sparql_cursor_get_string (cursor, 1, NULL) == NULL) {
+                                g_object_unref (connection);
+                                g_hash_table_destroy (hash_table);
+                                g_free (filter1);
+
+                                return NULL;
+                        }
+                    }
+
+                g_object_unref (cursor);
+        }
+
+        g_object_unref (connection);
+        g_free (filter1);
+
+        return hash_table;
 }

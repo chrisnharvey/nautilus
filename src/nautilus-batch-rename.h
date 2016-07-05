@@ -20,6 +20,8 @@ typedef enum {
         ORIGINAL_DESCENDING = 1,
         FIRST_MODIFIED = 2,
         LAST_MODIFIED = 3,
+        FIRST_CREATED = 4,
+        LAST_CREATED = 5,
 } SortingMode;
 
 #define NAUTILUS_TYPE_BATCH_RENAME (nautilus_batch_rename_get_type())

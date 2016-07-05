@@ -64,6 +64,8 @@ struct _NautilusBatchRename
         GActionGroup            *action_group;
 
         GMenu                   *numbering_order_menu;
+
+        GHashTable              *create_date;
 };
 
 static void     batch_rename_dialog_on_closed           (GtkDialog              *dialog);
@@ -83,12 +85,12 @@ numbering_order_changed (GSimpleAction       *action,
         dialog = NAUTILUS_BATCH_RENAME (user_data);
 
         target_name = g_variant_get_string (value, NULL);
-        g_message("%s",target_name);
 
         if (g_strcmp0 (target_name, "name-ascending") == 0) {
                 gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
                                      "Original name (Ascending)  ");
-                dialog->selection = nautilus_batch_rename_sort (dialog->selection, ORIGINAL_ASCENDING);
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                ORIGINAL_ASCENDING);
         }
 
         if (g_strcmp0 (target_name, "name-descending") == 0) {
@@ -110,6 +112,22 @@ numbering_order_changed (GSimpleAction       *action,
                                      "Last Modified                       ");
                 dialog->selection = nautilus_batch_rename_sort (dialog->selection,
                                                                 LAST_MODIFIED);
+        }
+
+        if (g_strcmp0 (target_name, "first-created") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "First Created                         ");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                FIRST_CREATED,
+                                                                dialog->create_date);
+        }
+
+        if (g_strcmp0 (target_name, "last-created") == 0) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_order_label),
+                                     "Last Created                         ");
+                dialog->selection = nautilus_batch_rename_sort (dialog->selection,
+                                                                LAST_CREATED,
+                                                                dialog->create_date);
         }
 
         g_simple_action_set_state (action, value);
@@ -400,6 +418,9 @@ numbering_order_popover_closed (NautilusBatchRename *dialog)
 static void
 nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
 {
+        GMenuItem *first_created;
+        GMenuItem *last_created;
+
         dialog->action_group = G_ACTION_GROUP (g_simple_action_group_new ());
 
         g_action_map_add_action_entries (G_ACTION_MAP (dialog->action_group),
@@ -409,6 +430,25 @@ nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
         gtk_widget_insert_action_group (GTK_WIDGET (dialog),
                                         "dialog",
                                         G_ACTION_GROUP (dialog->action_group));
+
+        dialog->create_date = check_creation_date_for_selection (dialog->selection);
+
+        if (dialog->create_date != NULL) {
+                first_created = g_menu_item_new ("First Created",
+                                                 "dialog.numbering-order-changed");
+
+                g_menu_item_set_attribute (first_created, "target", "s", "first-created");
+
+                g_menu_append_item (dialog->numbering_order_menu, first_created);
+
+                last_created = g_menu_item_new ("Last Created",
+                                                 "dialog.numbering-order-changed");
+
+                g_menu_item_set_attribute (last_created, "target", "s", "last-created");
+
+                g_menu_append_item (dialog->numbering_order_menu, last_created);
+
+        }
 }
 
 static void

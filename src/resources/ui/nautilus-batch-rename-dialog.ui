@@ -324,28 +324,23 @@
   <menu id="numbering_order_menu">
     <section>
       <item>
-        <attribute name="id">name_ascending</attribute>
         <attribute name="label" translatable="yes">Original name (Ascending) </attribute>
         <attribute name="action">dialog.numbering-order-changed</attribute>
         <attribute name="target">name-ascending</attribute>
       </item>
       <item>
-        <attribute name="id">name_descending</attribute>
         <attribute name="label" translatable="yes">Original name (Descending)</attribute>
         <attribute name="action">dialog.numbering-order-changed</attribute>
         <attribute name="target">name-descending</attribute>
       </item>
       <item>
-        <attribute name="id">first_modified</attribute>
         <attribute name="label" translatable="yes">First Modified</attribute>
         <attribute name="action">dialog.numbering-order-changed</attribute>
         <attribute name="target">first-modified</attribute>
       </item>
       <item>
-        <attribute name="id">last_modified</attribute>
         <attribute name="label" translatable="yes">Last Modified</attribute>
         <attribute name="action">dialog.numbering-order-changed</attribute>
-        <attribute name="verb-icon">object-select-symbolic</attribute>
         <attribute name="target">last-modified</attribute>
       </item>
     </section>
