@@ -632,6 +632,48 @@ nautilus_ensure_unique_file_name (const char *directory_uri,
 }
 
 GFile *
+nautilus_ensure_unique_file_with_hash (GFile *original_file,
+                                       int    hash_length)
+{
+        static const char letters[] =
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        static const int NLETTERS = sizeof (letters) - 1;
+
+        g_autoptr (GFile) parent_directory;
+        g_autofree char *basename;
+        g_autoptr (GRand) random_generator;
+        GFile *new_file = NULL;
+
+        random_generator = g_rand_new();
+        parent_directory = g_file_get_parent (original_file);
+        basename = g_file_get_basename (original_file);
+
+        do {
+                g_autofree char *hash;
+                g_autofree char *new_basename;
+                int i;
+
+                hash = g_new0 (char, hash_length + 1);
+                for (i = 0; i < hash_length; ++i) {
+                        gint32 random_letter;
+
+                        random_letter = g_rand_int_range (random_generator,
+                                                          0, NLETTERS);
+                        hash[i] = letters[random_letter];
+                }
+
+                hash[hash_length] = '\0';
+
+                g_clear_object (&new_file);
+
+                new_basename = g_strdup_printf ("%s (%s)", basename, hash);
+                new_file = g_file_get_child (parent_directory, new_basename);
+        } while (g_file_query_exists (new_file, NULL));
+
+        return new_file;
+}
+
+GFile *
 nautilus_find_existing_uri_in_hierarchy (GFile *location)
 {
 	GFileInfo *info;

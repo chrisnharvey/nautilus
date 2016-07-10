@@ -71,6 +71,8 @@ gboolean nautilus_uri_parse                          (const char  *uri,
 char *   nautilus_ensure_unique_file_name            (const char *directory_uri,
 						      const char *base_name,
 			                              const char *extension);
+GFile * nautilus_ensure_unique_file_with_hash (GFile *original_file,
+                                               int    hash_length);
 
 GFile *  nautilus_find_existing_uri_in_hierarchy     (GFile *location);
 

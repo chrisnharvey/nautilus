@@ -14,4 +14,8 @@ FileConflictResponse * copy_move_file_conflict_ask_user_action (GtkWindow *paren
                                                                 GFile     *dest,
                                                                 GFile     *dest_dir);
 
+FileConflictResponse * extract_file_conflict_ask_user_action (GtkWindow *parent_window,
+                                                              GFile     *src_name,
+                                                              GFile     *dest_name,
+                                                              GFile     *dest_dir_name);
 #endif
