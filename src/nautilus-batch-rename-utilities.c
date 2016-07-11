@@ -1,6 +1,6 @@
+
 #include "nautilus-batch-rename.h"
 #include "nautilus-batch-rename-utilities.h"
-#include "nautilus-files-view.h"
 #include "nautilus-file.h"
 
 #include <glib.h>
@@ -9,6 +9,7 @@
 #include <stdarg.h>
 
 #define MAX_DISPLAY_LEN 40
+#define MAX_FILTER_LEN 500
 
 typedef struct {
         NautilusFile *file;
@@ -20,12 +21,15 @@ batch_rename_append (gchar *file_name,
                      gchar *entry_text)
 {
         gchar *result;
+        gint len;
 
-        result = malloc (strlen (entry_text) + strlen (file_name) + 1);
+        len = strlen (entry_text) + strlen (file_name) + 1;
+        result = g_malloc (len);
+
         if (result == NULL) {
             return strdup (file_name);
         }
-        sprintf (result, "%s%s", file_name, entry_text);
+        g_snprintf (result, len, "%s%s", file_name, entry_text);
 
         return result;
 }
@@ -35,13 +39,16 @@ batch_rename_prepend (gchar *file_name,
                       gchar *entry_text)
 {
         gchar *result;
+        gint len;
 
-        result = malloc (strlen (entry_text) + strlen (file_name) + 1);
+        len = strlen (entry_text) + strlen (file_name) + 1;
+        result = g_malloc (len);
+
         if (result == NULL) {
             return strdup (file_name);
         }
 
-        sprintf (result, "%s%s", entry_text, file_name);
+        g_snprintf (result, len, "%s%s", entry_text, file_name);
 
         return result;
 }
@@ -51,10 +58,9 @@ batch_rename_replace (gchar *string,
                       gchar *substr,
                       gchar *replacement)
 {
-        gchar *tok = NULL;
-        gchar *newstr = NULL;
-        gchar *oldstr = NULL;
-        gint   skip_chars;
+        GString *new_string;
+        gchar **splitted_string;
+        gint i, n_splits;
 
         if (substr == NULL || replacement == NULL) {
                 return strdup (string);
@@ -64,34 +70,29 @@ batch_rename_replace (gchar *string,
                 return strdup (string);
         }
 
-        newstr = strdup (string);
+        splitted_string = g_strsplit (string, substr, -1);
+        if (splitted_string == NULL)
+            return string;
 
-        skip_chars = 0;
+        n_splits = g_strv_length (splitted_string);
 
-        while ((tok = strstr (newstr + skip_chars, substr))) {
-                oldstr = newstr;
-                newstr = malloc (strlen (oldstr) - strlen (substr) + strlen (replacement) + 1);
+        new_string = g_string_new ("");
 
-                if (newstr == NULL) {
-                        g_free (oldstr);
-                        return strdup (string);
-                }
+        i = 0;
 
-                memcpy (newstr, oldstr, tok - oldstr);
-                memcpy (newstr + (tok - oldstr), replacement, strlen (replacement));
-                memcpy (newstr + (tok - oldstr) + strlen( replacement ), tok + strlen ( substr ),
-                        strlen (oldstr) - strlen (substr) - (tok - oldstr));
-                memset (newstr + strlen (oldstr) - strlen (substr) + strlen (replacement) , '\0', 1 );
+        while (i < n_splits) {
+            g_string_append (new_string, splitted_string[i]);
 
-                skip_chars = strlen (oldstr) - strlen (tok) + strlen (replacement);
-                g_free (oldstr);
+            if (i != n_splits - 1)
+                g_string_append (new_string, replacement);
+            i++;
         }
 
-        return newstr;
+        return new_string->str;
 }
 
 gchar*
-get_new_name (NautilusBatchRenameModes  mode,
+get_new_name (NautilusBatchRenameMode   mode,
               gchar                     *file_name,
               gchar                     *entry_text,
               ...)
@@ -120,7 +121,7 @@ get_new_name (NautilusBatchRenameModes  mode,
 }
 
 GList*
-get_new_names_list (NautilusBatchRenameModes    mode,
+get_new_names_list (NautilusBatchRenameMode     mode,
                     GList                       *selection,
                     gchar                       *entry_text,
                     gchar                       *replace_text)
@@ -140,15 +141,15 @@ get_new_names_list (NautilusBatchRenameModes    mode,
                 /* get the new name here and add it to the list*/
                 if (mode == NAUTILUS_BATCH_RENAME_PREPEND)
                         result = g_list_prepend (result,
-                                                 (gpointer) batch_rename_prepend (file_name, entry_text));
+                                                 batch_rename_prepend (file_name, entry_text));
 
                 if (mode == NAUTILUS_BATCH_RENAME_APPEND)
                         result = g_list_prepend (result,
-                                                 (gpointer) batch_rename_append (file_name, entry_text));
+                                                 batch_rename_append (file_name, entry_text));
 
                 if (mode == NAUTILUS_BATCH_RENAME_REPLACE)
                         result = g_list_prepend (result,
-                                                 (gpointer) batch_rename_replace (file_name, entry_text, replace_text));
+                                                 batch_rename_replace (file_name, entry_text, replace_text));
                 
                 g_free (file_name);
         }
@@ -157,7 +158,7 @@ get_new_names_list (NautilusBatchRenameModes    mode,
 }
 
 gchar*
-get_new_display_name (NautilusBatchRenameModes    mode,
+get_new_display_name (NautilusBatchRenameMode     mode,
                       gchar                       *file_name,
                       gchar                       *entry_text,
                       gchar                       *replace_text)
@@ -187,25 +188,12 @@ list_has_duplicates (NautilusFilesView *view,
 
                 if (strcmp (l1->data, file_name) != 0 && file_with_name_exists (view, l1->data) == TRUE) {
                         result = g_list_prepend (result,
-                                                 (gpointer) (l1->data));
+                                                 l1->data);
                 }
 
                 g_free (file_name);
         }
         return result;
-}
-
-gchar*
-concat(gchar *s1, gchar *s2)
-{
-    gchar *result;
-
-    result = malloc (strlen(s1) + strlen(s2) + 1);
-
-    memcpy(result, s1, strlen(s1));
-    memcpy(result + strlen(s1), s2, strlen(s2) + 1);
-
-    return result;
 }
 
 gint
@@ -317,14 +305,14 @@ nautilus_batch_rename_sort (GList *selection,
 
                 for (l = selection; l != NULL; l = l->next) {
                         CreateDateElem *elem;
-                        elem = malloc (sizeof (CreateDateElem*));
+                        elem = g_malloc (sizeof (CreateDateElem*));
 
                         file = NAUTILUS_FILE (l->data);
 
                         elem->file = file;
                         elem->position = (gint*) g_hash_table_lookup (hash_table, nautilus_file_get_name (file));
 
-                        createDate_list = g_list_prepend (createDate_list, (gpointer) elem);
+                        createDate_list = g_list_prepend (createDate_list, elem);
                 }
 
                 if (mode == FIRST_CREATED)
@@ -359,31 +347,31 @@ check_creation_date_for_selection (GList *selection)
         NautilusFile *file;
         gchar *query = "SELECT nfo:fileName(?file) nie:contentCreated(?file) WHERE { ?file a nfo:FileDataObject. ";
 
-        filter1 = malloc (150);
-        sprintf (filter1, "FILTER(tracker:uri-is-parent('%s', nie:url(?file)))",
+        filter1 = g_malloc (MAX_FILTER_LEN);
+        g_snprintf (filter1, MAX_FILTER_LEN, "FILTER(tracker:uri-is-parent('%s', nie:url(?file)))",
                  nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data)));
 
-        sparql = concat (query, filter1);
+        sparql = g_strconcat (query, filter1, NULL);
 
         for (l = selection; l != NULL; l = l->next) {
-                filter2 = malloc (150);
+                filter2 = g_malloc (MAX_FILTER_LEN);
 
                 file = NAUTILUS_FILE (l->data);
 
                 if (l == selection)
-                        sprintf (filter2, "FILTER (nfo:fileName(?file) = '%s' ", nautilus_file_get_name (file));
+                        g_snprintf (filter2, MAX_FILTER_LEN, "FILTER (nfo:fileName(?file) = '%s' ", nautilus_file_get_name (file));
                 else
-                        sprintf (filter2, "|| nfo:fileName(?file) = '%s'", nautilus_file_get_name (file));
+                        g_snprintf (filter2, MAX_FILTER_LEN, "|| nfo:fileName(?file) = '%s'", nautilus_file_get_name (file));
 
                 tmp = sparql;
-                sparql = concat (sparql, filter2);
+                sparql = g_strconcat (sparql, filter2, NULL);
 
                 g_free (tmp);
                 g_free (filter2);
         }
 
         tmp = sparql;
-        sparql = concat (sparql, ")} ORDER BY ASC(nie:contentCreated(?file))");
+        sparql = g_strconcat (sparql, ")} ORDER BY ASC(nie:contentCreated(?file))", NULL);
 
         connection = tracker_sparql_connection_get (NULL, &error);
         if (!connection)
@@ -410,7 +398,7 @@ check_creation_date_for_selection (GList *selection)
 
                 /* Iterate, synchronously, the results */
                 while (tracker_sparql_cursor_next (cursor, NULL, &error)) {
-                        value = malloc (sizeof(int));
+                        value = g_malloc (sizeof(int));
                         *value = i++;
 
                         g_hash_table_insert (hash_table,
@@ -431,6 +419,23 @@ check_creation_date_for_selection (GList *selection)
 
         g_object_unref (connection);
         g_free (filter1);
+        g_free (sparql);
 
         return hash_table;
+}
+
+gboolean
+nautilus_file_can_rename_files (GList *selection)
+{
+    GList *l;
+    NautilusFile *file;
+
+    for (l = selection; l != NULL; l = l->next) {
+        file = NAUTILUS_FILE (l->data);
+
+        if (!nautilus_file_can_rename (file))
+            return FALSE;
+    }
+
+    return TRUE;
 }

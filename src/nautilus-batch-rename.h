@@ -3,6 +3,7 @@
 #define NAUTILUS_BATCH_RENAME_H
 
 #include <glib.h>
+#include <glib/gprintf.h>
 #include <gtk/gtk.h>
 #include "nautilus-files-view.h"
 
@@ -13,7 +14,7 @@ typedef enum {
         NAUTILUS_BATCH_RENAME_PREPEND = 1,
         NAUTILUS_BATCH_RENAME_REPLACE = 2,
         NAUTILUS_BATCH_RENAME_FORMAT = 3,
-} NautilusBatchRenameModes;
+} NautilusBatchRenameMode;
 
 typedef enum {
         ORIGINAL_ASCENDING = 0,

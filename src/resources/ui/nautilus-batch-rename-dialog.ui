@@ -159,7 +159,9 @@
                             <child>
                               <object class="GtkLabel" id="numbering_order_label">
                                 <property name="visible">True</property>
-                                <property name="label" translatable="yes">Original name (Ascending)  </property>
+                                <property name="width-request">180</property>
+                                <property name="xalign">0</property>
+                                <property name="label" translatable="yes">Original name (Ascending)</property>
                                 <property name="can_focus">False</property>
                               </object>
                             </child>
