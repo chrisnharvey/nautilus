@@ -5,14 +5,12 @@
     <property name="modal">True</property>
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
-
     <child type="action">
       <object class="GtkButton" id="cancel_button">
         <property name="label" translatable="yes">_Cancel</property>
         <property name="visible">True</property>
         <property name="can_focus">True</property>
         <property name="use_underline">True</property>
-        <signal name="clicked" handler="batch_rename_dialog_on_closed" swapped="yes" />
       </object>
     </child>
     <child type="action">
@@ -27,12 +25,10 @@
         </style>
       </object>
     </child>
-
     <action-widgets>
       <action-widget response="ok" default="true">rename_button</action-widget>
       <action-widget response="cancel">cancel_button</action-widget>
     </action-widgets>
-
     <child internal-child="vbox">
       <object class="GtkBox" id="vbox">
         <child>
@@ -108,6 +104,7 @@
                           <object class="GtkEntry" id="name_entry">
                             <property name="visible">True</property>
                             <property name="can_focus">True</property>
+                            <property name="has_focus">True</property>
                             <property name="width_request">400</property>
                             <property name="hexpand">False</property>
                             <property name="activates-default">True</property>
@@ -293,18 +290,70 @@
               </packing>
             </child>
             <child>
-              <object class="GtkLabel" id="error_label">
-                <property name="visible">False</property>
-                <property name="halign">start</property>
-                <property name="can_focus">False</property>
+              <object class="GtkBox" id="conflict_box">
+                <property name="orientation">horizontal</property>
+                <property name="spacing">6</property>
+                <property name="visible">True</property>
+                <property name="margin-left">6</property>
+                <child>
+                  <object class="GtkLabel" id="conflict_label">
+                    <property name="visible">True</property>
+                    <property name="can_focus">False</property>
+                    <property name="hexpand">False</property>
+                  </object>
+                  <packing>
+                    <property name="pack-type">start</property>
+                  </packing>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="visible">True</property>
+                    <child>
+                      <object class="GtkButton" id="conflict_down">
+                        <property name="visible">True</property>
+                        <property name="relief">none</property>
+                         <signal name="clicked" handler="move_next_conflict_down" swapped="yes" />
+                        <child>
+                          <object class="GtkImage">
+                            <property name="visible">True</property>
+                            <property name="icon-name">go-down-symbolic</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkButton" id="conflict_up">
+                        <property name="visible">True</property>
+                        <property name="relief">GTK_RELIEF_NONE</property>
+                        <signal name="clicked" handler="move_next_conflict_up" swapped="yes" />
+                        <child>
+                          <object class="GtkImage">
+                            <property name="visible">True</property>
+                            <property name="icon-name">go-up-symbolic</property>
+                            <property name="icon-size">1</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                  <packing>
+                    <property name="pack-type">end</property>
+                  </packing>
+                </child>
               </object>
+              <packing>
+                <property name="left-attach">0</property>
+                <property name="top-attach">3</property>
+                <property name="width">8</property>
+              </packing>
             </child>
           </object>
         </child>
       </object>
     </child>
   </template>
-
   <object class="GtkPopover" id="add_popover">
     <property name="position">bottom</property>
     <property name="relative-to">add_button</property>
@@ -318,7 +367,6 @@
       </object>
     </child>
   </object>
-
   <object class="GtkImage" id="done_image">
     <property name="visible">True</property>
     <property name="icon_name">object-select-symbolic</property>

@@ -5528,7 +5528,9 @@ real_action_rename (NautilusFilesView *view,
                         if (have_bulk_rename_tool ()) {
                                 invoke_external_bulk_rename_utility (view, selection);
                         } else {
-                                dialog = nautilus_batch_rename_new (view);
+                                dialog = nautilus_batch_rename_new (nautilus_files_view_get_selection (view),
+                                                                    nautilus_files_view_get_model (view),
+                                                                    nautilus_files_view_get_window (view));
 
                                 gtk_widget_show (GTK_WIDGET (dialog));
                         }

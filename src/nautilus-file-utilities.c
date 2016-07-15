@@ -1149,6 +1149,22 @@ nautilus_file_selection_equal (GList *selection_a,
 	return selection_matches;
 }
 
+gboolean
+nautilus_file_can_rename_files (GList *selection)
+{
+    GList *l;
+    NautilusFile *file;
+
+    for (l = selection; l != NULL; l = l->next) {
+        file = NAUTILUS_FILE (l->data);
+
+        if (!nautilus_file_can_rename (file))
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
 #if !defined (NAUTILUS_OMIT_SELF_CHECK)
 
 void

@@ -29,7 +29,12 @@ typedef enum {
 
 G_DECLARE_FINAL_TYPE (NautilusBatchRename, nautilus_batch_rename, NAUTILUS, BATCH_RENAME, GtkDialog);
 
-GtkWidget*      nautilus_batch_rename_new       (NautilusFilesView *view);
+GtkWidget*      nautilus_batch_rename_new       (GList                  *selection,
+                                                 NautilusDirectory      *model,
+                                                 NautilusWindow         *window);
+
+void            query_finished                  (NautilusBatchRename    *dialog,
+                                                 GHashTable             *hash_table);
 
 G_END_DECLS
 

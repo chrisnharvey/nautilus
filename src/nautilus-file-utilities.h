@@ -98,4 +98,6 @@ gboolean nautilus_file_selection_equal (GList *selection_a, GList *selection_b);
 void nautilus_ensure_extension_points (void);
 void nautilus_ensure_extension_builtins (void);
 
+gboolean nautilus_file_can_rename_files (GList *selection);
+
 #endif /* NAUTILUS_FILE_UTILITIES_H */

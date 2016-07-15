@@ -16,6 +16,15 @@ typedef struct {
         gint *position;
 } CreateDateElem;
 
+typedef struct {
+        NautilusBatchRename *dialog;
+        GHashTable *hash_table;
+} QueryData;
+
+static void cursor_callback (GObject      *object,
+                             GAsyncResult *result,
+                             gpointer      user_data);
+
 static gchar*
 batch_rename_append (gchar *file_name,
                      gchar *entry_text)
@@ -23,7 +32,7 @@ batch_rename_append (gchar *file_name,
         gchar *result;
         gint len;
 
-        len = strlen (entry_text) + strlen (file_name) + 1;
+        len = strlen (entry_text) + strlen (file_name);
         result = g_malloc (len);
 
         if (result == NULL) {
@@ -41,7 +50,7 @@ batch_rename_prepend (gchar *file_name,
         gchar *result;
         gint len;
 
-        len = strlen (entry_text) + strlen (file_name) + 1;
+        len = strlen (entry_text) + strlen (file_name);
         result = g_malloc (len);
 
         if (result == NULL) {
@@ -78,50 +87,18 @@ batch_rename_replace (gchar *string,
 
         new_string = g_string_new ("");
 
-        i = 0;
-
-        while (i < n_splits) {
+        for (i = 0; i < n_splits; i++) {
             g_string_append (new_string, splitted_string[i]);
 
             if (i != n_splits - 1)
                 g_string_append (new_string, replacement);
-            i++;
         }
 
         return new_string->str;
 }
 
-gchar*
-get_new_name (NautilusBatchRenameMode   mode,
-              gchar                     *file_name,
-              gchar                     *entry_text,
-              ...)
-{
-        va_list args;
-        gchar *result;
-
-        result = NULL;
-
-        if (mode == NAUTILUS_BATCH_RENAME_REPLACE) {
-
-                va_start (args, entry_text);
-
-                result = batch_rename_replace (file_name, entry_text, va_arg(args, gchar*));
-
-                va_end (args);
-        }
-
-        if (mode == NAUTILUS_BATCH_RENAME_APPEND)
-                result = batch_rename_append (file_name, entry_text);
-
-        if (mode == NAUTILUS_BATCH_RENAME_PREPEND)
-                result = batch_rename_prepend (file_name, entry_text);
-
-        return result;
-}
-
 GList*
-get_new_names_list (NautilusBatchRenameMode     mode,
+get_new_names_list (NautilusBatchRenameMode      mode,
                     GList                       *selection,
                     gchar                       *entry_text,
                     gchar                       *replace_text)
@@ -157,56 +134,68 @@ get_new_names_list (NautilusBatchRenameMode     mode,
         return result;
 }
 
-gchar*
-get_new_display_name (NautilusBatchRenameMode     mode,
-                      gchar                       *file_name,
-                      gchar                       *entry_text,
-                      gchar                       *replace_text)
-{
-        gchar *result;
-
-        result = get_new_name (mode, file_name, entry_text, replace_text);
-
-        return result;
-}
-
 GList*
-list_has_duplicates (NautilusFilesView *view,
+list_has_duplicates (NautilusDirectory *model,
                      GList             *new_names,
-                     GList             *old_names)
+                     GList             *selection,
+                     gboolean           same_parent)
 {
-        GList *l1, *l2;
-        GList *result;
-        NautilusFile *file;
-        gchar *file_name;
+        /* handling conflicts for files in different directories is missing */
+        if (!same_parent)
+                return NULL;
+
+        GList *directory_files, *l1, *l2, *result;
+        NautilusFile *file1, *file2;
+        GString *file_name1, *file_name2;
+
+        directory_files = nautilus_directory_get_file_list (model);
+
+        file_name1 = g_string_new ("");
+        file_name2 = g_string_new ("");
 
         result = NULL;
 
-        for (l1 = new_names, l2 = old_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
-                file = NAUTILUS_FILE (l2->data);
-                file_name = strdup (nautilus_file_get_name (file));
+        for (l1 = new_names; l1 != NULL; l1 = l1->next) {
+                file1 = NAUTILUS_FILE (selection->data);
 
-                if (strcmp (l1->data, file_name) != 0 && file_with_name_exists (view, l1->data) == TRUE) {
-                        result = g_list_prepend (result,
-                                                 l1->data);
+                g_string_erase (file_name1, 0, -1);
+                g_string_append (file_name1, nautilus_file_get_name (file1));
+
+                /* check for duplicate only if the name has changed */
+                if (g_strcmp0 (l1->data, file_name1->str) != 0) {
+                        for (l2 = directory_files; l2 != NULL; l2 = l2->next) {
+                               file2 = NAUTILUS_FILE (l2->data);
+
+                                g_string_erase (file_name2, 0, -1);
+                                g_string_append (file_name2, nautilus_file_get_name (file2));
+
+                                if (g_strcmp0 (l1->data, file_name2->str) == 0) {
+                                        result = g_list_prepend (result, strdup (l1->data));
+                                        break;
+                                }
+                        }
                 }
 
-                g_free (file_name);
+                selection = selection->next;
         }
-        return result;
+
+        g_string_free (file_name1, TRUE);
+        g_string_free (file_name2, TRUE);
+
+        return g_list_reverse (result);
 }
 
 gint
 compare_files_by_name_ascending (gconstpointer a,
                                  gconstpointer b)
 {
-        NautilusFile *f1;
-        NautilusFile *f2;
+        NautilusFile *file1;
+        NautilusFile *file2;
 
-        f1 = NAUTILUS_FILE (a);
-        f2 = NAUTILUS_FILE (b);
+        file1 = NAUTILUS_FILE (a);
+        file2 = NAUTILUS_FILE (b);
 
-        return nautilus_file_compare_for_sort (f1,f2,
+        return nautilus_file_compare_for_sort (file1,file2,
                                                NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
                                                FALSE, FALSE);
 }
@@ -215,13 +204,13 @@ gint
 compare_files_by_name_descending (gconstpointer a,
                                   gconstpointer b)
 {
-        NautilusFile *f1;
-        NautilusFile *f2;
+        NautilusFile *file1;
+        NautilusFile *file2;
 
-        f1 = NAUTILUS_FILE (a);
-        f2 = NAUTILUS_FILE (b);
+        file1 = NAUTILUS_FILE (a);
+        file2 = NAUTILUS_FILE (b);
 
-        return nautilus_file_compare_for_sort (f1,f2,
+        return nautilus_file_compare_for_sort (file1,file2,
                                                NAUTILUS_FILE_SORT_BY_DISPLAY_NAME,
                                                FALSE, TRUE);
 }
@@ -230,13 +219,13 @@ gint
 compare_files_by_first_modified (gconstpointer a,
                                  gconstpointer b)
 {
-        NautilusFile *f1;
-        NautilusFile *f2;
+        NautilusFile *file1;
+        NautilusFile *file2;
 
-        f1 = NAUTILUS_FILE (a);
-        f2 = NAUTILUS_FILE (b);
+        file1 = NAUTILUS_FILE (a);
+        file2 = NAUTILUS_FILE (b);
 
-        return nautilus_file_compare_for_sort (f1,f2,
+        return nautilus_file_compare_for_sort (file1,file2,
                                                NAUTILUS_FILE_SORT_BY_MTIME,
                                                FALSE, FALSE);
 }
@@ -245,13 +234,13 @@ gint
 compare_files_by_last_modified (gconstpointer a,
                                 gconstpointer b)
 {
-        NautilusFile *f1;
-        NautilusFile *f2;
+        NautilusFile *file1;
+        NautilusFile *file2;
 
-        f1 = NAUTILUS_FILE (a);
-        f2 = NAUTILUS_FILE (b);
+        file1 = NAUTILUS_FILE (a);
+        file2 = NAUTILUS_FILE (b);
 
-        return nautilus_file_compare_for_sort (f1,f2,
+        return nautilus_file_compare_for_sort (file1,file2,
                                                NAUTILUS_FILE_SORT_BY_MTIME,
                                                FALSE, TRUE);
 }
@@ -260,24 +249,34 @@ gint
 compare_files_by_first_created (gconstpointer a,
                                 gconstpointer b)
 {
-        return *(((CreateDateElem*) a)->position) - *(((CreateDateElem*) b)->position);
+        CreateDateElem *elem1;
+        CreateDateElem *elem2;
+
+        elem1 = (CreateDateElem*) a;
+        elem2 = (CreateDateElem*) b;
+
+        return *(elem1->position) - *(elem2->position);
 }
 
 gint
 compare_files_by_last_created (gconstpointer a,
                                gconstpointer b)
 {
-        return *(((CreateDateElem*) b)->position) - *(((CreateDateElem*) a)->position);
+        CreateDateElem *elem1;
+        CreateDateElem *elem2;
+
+        elem1 = (CreateDateElem*) a;
+        elem2 = (CreateDateElem*) b;
+
+        return *(elem2->position) - *(elem1->position);
 }
 
 GList*
-nautilus_batch_rename_sort (GList *selection,
-                            SortingMode mode,
-                            ...)
+nautilus_batch_rename_sort (GList       *selection,
+                            SortingMode  mode,
+                            GHashTable  *hash_table)
 {
         GList *l,*l2;
-        va_list args;
-        GHashTable *hash_table;
         NautilusFile *file;
         GList *createDate_list, *createDate_list_sorted;
 
@@ -297,10 +296,6 @@ nautilus_batch_rename_sort (GList *selection,
         }
 
         if (mode == FIRST_CREATED || mode == LAST_CREATED) {
-                va_start (args, mode);
-
-                hash_table = va_arg(args, GHashTable*);
-
                 createDate_list = NULL;
 
                 for (l = selection; l != NULL; l = l->next) {
@@ -327,115 +322,188 @@ nautilus_batch_rename_sort (GList *selection,
                         l->data = elem->file;
                 }
 
-                va_end (args);
                 g_list_free (createDate_list);
         }
 
         return selection;
 }
 
-GHashTable*
-check_creation_date_for_selection (GList *selection)
+static void
+cursor_next (QueryData           *data,
+             TrackerSparqlCursor *cursor)
 {
-        GError *error = NULL;
+        tracker_sparql_cursor_next_async (cursor,
+                                          NULL,
+                                          cursor_callback,
+                                          data);
+}
+
+static void
+cursor_callback (GObject      *object,
+                 GAsyncResult *result,
+                 gpointer      user_data)
+{
+        GHashTable *hash_table;
+        TrackerSparqlCursor *cursor;
+        gboolean success;
+        gint *value;
+        QueryData *data;
+        GError *error;
+
+        error = NULL;
+
+        cursor = TRACKER_SPARQL_CURSOR (object);
+        data = user_data;
+        hash_table = data->hash_table;
+
+        success = tracker_sparql_cursor_next_finish (cursor, result, &error);
+
+        if (!success) {
+                g_clear_error (&error);
+                g_clear_object (&cursor);
+
+                query_finished (data->dialog, data->hash_table);
+
+                return;
+        }
+
+        value = g_malloc (sizeof(int));
+        *value = g_hash_table_size (hash_table);
+
+        g_hash_table_insert (hash_table,
+                             strdup (tracker_sparql_cursor_get_string (cursor, 0, NULL)),
+                             value);
+
+        if (tracker_sparql_cursor_get_string (cursor, 1, NULL) == NULL) {
+                g_object_unref (cursor);
+                g_hash_table_destroy (hash_table);
+
+                query_finished (data->dialog, NULL);
+
+                /* if one file doesn't have the metadata, there's no point in
+                 * continuing the query */
+                return ;
+        }
+
+        /* Get next */
+        cursor_next (data, cursor);
+}
+
+static void
+query_callback (GObject      *object,
+                GAsyncResult *result,
+                gpointer      user_data)
+{
         TrackerSparqlConnection *connection;
         TrackerSparqlCursor *cursor;
-        gchar *filter1, *filter2, *sparql, *tmp;
+        QueryData *data;
+        GError *error;
+
+        error = NULL;
+
+        connection = TRACKER_SPARQL_CONNECTION (object);
+        data = user_data;
+
+        cursor = tracker_sparql_connection_query_finish (connection,
+                                                         result,
+                                                         &error);
+
+        if (error != NULL) {
+                g_error_free (error);
+
+                query_finished (data->dialog, data->hash_table);
+        } else {
+                cursor_next (data, cursor);
+        }
+}
+
+void
+check_creation_date_for_selection (NautilusBatchRename *dialog,
+                                   GList *selection)
+{
+        TrackerSparqlConnection *connection;
+        GString *query;
         GHashTable *hash_table;
         GList *l;
-        gint i, *value;
         NautilusFile *file;
-        gchar *query = "SELECT nfo:fileName(?file) nie:contentCreated(?file) WHERE { ?file a nfo:FileDataObject. ";
+        GError *error;
+        QueryData *data;
 
-        filter1 = g_malloc (MAX_FILTER_LEN);
-        g_snprintf (filter1, MAX_FILTER_LEN, "FILTER(tracker:uri-is-parent('%s', nie:url(?file)))",
-                 nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data)));
+        error = NULL;
 
-        sparql = g_strconcat (query, filter1, NULL);
+        query = g_string_new ("SELECT nfo:fileName(?file) nie:contentCreated(?file) WHERE { ?file a nfo:FileDataObject. ");
+
+        g_string_append_printf (query,
+                                "FILTER(tracker:uri-is-parent('%s', nie:url(?file))) ",
+                                nautilus_file_get_parent_uri (NAUTILUS_FILE (selection->data)));
 
         for (l = selection; l != NULL; l = l->next) {
-                filter2 = g_malloc (MAX_FILTER_LEN);
-
                 file = NAUTILUS_FILE (l->data);
 
                 if (l == selection)
-                        g_snprintf (filter2, MAX_FILTER_LEN, "FILTER (nfo:fileName(?file) = '%s' ", nautilus_file_get_name (file));
+                        g_string_append_printf (query,
+                                                "FILTER (nfo:fileName(?file) = '%s' ",
+                                                nautilus_file_get_name (file));
                 else
-                        g_snprintf (filter2, MAX_FILTER_LEN, "|| nfo:fileName(?file) = '%s'", nautilus_file_get_name (file));
-
-                tmp = sparql;
-                sparql = g_strconcat (sparql, filter2, NULL);
-
-                g_free (tmp);
-                g_free (filter2);
+                        g_string_append_printf (query,
+                                                "|| nfo:fileName(?file) = '%s' ",
+                                                nautilus_file_get_name (file));
         }
 
-        tmp = sparql;
-        sparql = g_strconcat (sparql, ")} ORDER BY ASC(nie:contentCreated(?file))", NULL);
+        g_string_append (query, ")} ORDER BY ASC(nie:contentCreated(?file))");
 
         connection = tracker_sparql_connection_get (NULL, &error);
-        if (!connection)
-            return NULL;
+        if (!connection) {
+                g_error_free (error);
 
-        /* Make a synchronous query to the store */
-        cursor = tracker_sparql_connection_query (connection,
-                                                  sparql,
-                                                  NULL,
-                                                  &error);
-
-        if (error)
-                return NULL;
-
-        /* Check results */
-        if (!cursor) {
-                return NULL;
-        } else {
-                hash_table = g_hash_table_new_full (g_str_hash,
-                                                    g_str_equal,
-                                                    (GDestroyNotify) g_free,
-                                                    (GDestroyNotify) g_free);
-                i = 0;
-
-                /* Iterate, synchronously, the results */
-                while (tracker_sparql_cursor_next (cursor, NULL, &error)) {
-                        value = g_malloc (sizeof(int));
-                        *value = i++;
-
-                        g_hash_table_insert (hash_table,
-                                             strdup(tracker_sparql_cursor_get_string (cursor, 0, NULL)),
-                                             value);
-
-                        if (tracker_sparql_cursor_get_string (cursor, 1, NULL) == NULL) {
-                                g_object_unref (connection);
-                                g_hash_table_destroy (hash_table);
-                                g_free (filter1);
-
-                                return NULL;
-                        }
-                    }
-
-                g_object_unref (cursor);
+                return;
         }
 
-        g_object_unref (connection);
-        g_free (filter1);
-        g_free (sparql);
+        hash_table = g_hash_table_new_full (g_str_hash,
+                                            g_str_equal,
+                                            (GDestroyNotify) g_free,
+                                            (GDestroyNotify) g_free);
 
-        return hash_table;
+        data = g_malloc (sizeof (QueryData*));
+        data->hash_table = hash_table;
+        data->dialog = dialog;
+
+        /* Make an asynchronous query to the store */
+        tracker_sparql_connection_query_async (connection,
+                                               query->str,
+                                               NULL,
+                                               query_callback,
+                                               data);
+
+        g_object_unref (connection);
+        g_string_free (query, TRUE);
 }
 
 gboolean
-nautilus_file_can_rename_files (GList *selection)
+selection_has_single_parent (GList *selection)
 {
-    GList *l;
-    NautilusFile *file;
+        GList *l;
+        NautilusFile *file;
+        GString *parent_name1, *parent_name2;
 
-    for (l = selection; l != NULL; l = l->next) {
-        file = NAUTILUS_FILE (l->data);
+        file = NAUTILUS_FILE (selection->data);
 
-        if (!nautilus_file_can_rename (file))
-            return FALSE;
-    }
+        parent_name2 = g_string_new ("");
+        parent_name1 = g_string_new ("");
+        g_string_append (parent_name1, nautilus_file_get_parent_uri (file));
 
-    return TRUE;
+        for (l = selection->next; l != NULL; l = l->next) {
+                file = NAUTILUS_FILE (l->data);
+
+                g_string_erase (parent_name2, 0, -1);
+                g_string_append (parent_name2, nautilus_file_get_parent_uri (file));
+
+                if (!g_string_equal (parent_name1, parent_name2))
+                        return FALSE;
+        }
+
+        g_string_free (parent_name1, TRUE);
+        g_string_free (parent_name2, TRUE);
+
+        return TRUE;
 }
