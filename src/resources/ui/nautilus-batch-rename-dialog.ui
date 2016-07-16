@@ -117,9 +117,25 @@
                             <property name="visible">True</property>
                             <signal name="toggled" handler="add_button_clicked" swapped="yes" />
                             <child>
-                              <object class="GtkLabel" id="add_button_label">
+                              <object class="GtkBox">
                                 <property name="visible">True</property>
-                                <property name="can_focus">False</property>
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">0</property>
+                                <child>
+                                  <object class="GtkImage">
+                                    <property name="visible">True</property>
+                                    <property name="icon-name">list-add-symbolic</property>
+                                    <property name="icon-size">1</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="visible">True</property>
+                                    <property name="xalign">0</property>
+                                    <property name="label" translatable="yes">Add</property>
+                                    <property name="can_focus">False</property>
+                                  </object>
+                                </child>
                               </object>
                             </child>
                           </object>
@@ -210,7 +226,7 @@
                       <object class="GtkEntry" id="find_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="width_request">400</property>
+                        <property name="width_request">375</property>
                         <property name="hexpand">False</property>
                         <property name="activates-default">True</property>
                         <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
@@ -239,7 +255,7 @@
                       <object class="GtkEntry" id="replace_entry">
                         <property name="visible">True</property>
                         <property name="can_focus">True</property>
-                        <property name="width_request">400</property>
+                        <property name="width_request">375</property>
                         <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
                         <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
                       </object>

@@ -25,44 +25,51 @@ static void cursor_callback (GObject      *object,
                              GAsyncResult *result,
                              gpointer      user_data);
 
-static gchar*
+void
+string_free (gpointer mem)
+{
+        g_string_free (mem, TRUE);
+}
+
+static GString*
 batch_rename_append (gchar *file_name,
                      gchar *entry_text)
 {
-        gchar *result;
-        gint len;
+        GString *result;
 
-        len = strlen (entry_text) + strlen (file_name);
-        result = g_malloc (len);
+        result = g_string_new ("");
 
         if (result == NULL) {
-            return strdup (file_name);
+                g_string_append (result, file_name);
+
+                return result;
         }
-        g_snprintf (result, len, "%s%s", file_name, entry_text);
+
+        g_string_append_printf (result, "%s%s", file_name, entry_text);
 
         return result;
 }
 
-static gchar*
+static GString*
 batch_rename_prepend (gchar *file_name,
                       gchar *entry_text)
 {
-        gchar *result;
-        gint len;
+        GString *result;
 
-        len = strlen (entry_text) + strlen (file_name);
-        result = g_malloc (len);
+        result = g_string_new ("");
 
         if (result == NULL) {
-            return strdup (file_name);
+                g_string_append (result, file_name);
+
+                return result;
         }
 
-        g_snprintf (result, len, "%s%s", entry_text, file_name);
+        g_string_append_printf (result, "%s%s", entry_text, file_name);
 
         return result;
 }
 
-static gchar*
+static GString*
 batch_rename_replace (gchar *string,
                       gchar *substr,
                       gchar *replacement)
@@ -71,21 +78,28 @@ batch_rename_replace (gchar *string,
         gchar **splitted_string;
         gint i, n_splits;
 
+        new_string = g_string_new ("");
+
         if (substr == NULL || replacement == NULL) {
-                return strdup (string);
+                g_string_append (new_string, string);
+
+                return new_string;
         }
 
         if (strcmp (substr, "") == 0) {
-                return strdup (string);
+                g_string_append (new_string, string);
+
+                return new_string;
         }
 
         splitted_string = g_strsplit (string, substr, -1);
-        if (splitted_string == NULL)
-            return string;
+        if (splitted_string == NULL) {
+                g_string_append (new_string, string);
+
+                return new_string;
+        }
 
         n_splits = g_strv_length (splitted_string);
-
-        new_string = g_string_new ("");
 
         for (i = 0; i < n_splits; i++) {
             g_string_append (new_string, splitted_string[i]);
@@ -94,7 +108,7 @@ batch_rename_replace (gchar *string,
                 g_string_append (new_string, replacement);
         }
 
-        return new_string->str;
+        return new_string;
 }
 
 GList*
@@ -105,31 +119,34 @@ get_new_names_list (NautilusBatchRenameMode      mode,
 {
         GList *l;
         GList *result;
-        gchar *file_name;
+        GString *file_name;
         NautilusFile *file;
 
         result = NULL;
+        file_name = g_string_new ("");
 
         for (l = selection; l != NULL; l = l->next) {
                 file = NAUTILUS_FILE (l->data);
 
-                file_name = strdup (nautilus_file_get_name (file));
+                g_string_append (file_name ,nautilus_file_get_name (file));
 
                 /* get the new name here and add it to the list*/
                 if (mode == NAUTILUS_BATCH_RENAME_PREPEND)
                         result = g_list_prepend (result,
-                                                 batch_rename_prepend (file_name, entry_text));
+                                                 batch_rename_prepend (file_name->str, entry_text));
 
                 if (mode == NAUTILUS_BATCH_RENAME_APPEND)
                         result = g_list_prepend (result,
-                                                 batch_rename_append (file_name, entry_text));
+                                                 batch_rename_append (file_name->str, entry_text));
 
                 if (mode == NAUTILUS_BATCH_RENAME_REPLACE)
                         result = g_list_prepend (result,
-                                                 batch_rename_replace (file_name, entry_text, replace_text));
+                                                 batch_rename_replace (file_name->str, entry_text, replace_text));
                 
-                g_free (file_name);
+                g_string_erase (file_name, 0, -1);
         }
+
+        g_string_free (file_name, TRUE);
 
         return result;
 }
@@ -146,7 +163,7 @@ list_has_duplicates (NautilusDirectory *model,
 
         GList *directory_files, *l1, *l2, *result;
         NautilusFile *file1, *file2;
-        GString *file_name1, *file_name2;
+        GString *file_name1, *file_name2, *new_name;
 
         directory_files = nautilus_directory_get_file_list (model);
 
@@ -157,20 +174,21 @@ list_has_duplicates (NautilusDirectory *model,
 
         for (l1 = new_names; l1 != NULL; l1 = l1->next) {
                 file1 = NAUTILUS_FILE (selection->data);
+                new_name = l1->data;
 
                 g_string_erase (file_name1, 0, -1);
                 g_string_append (file_name1, nautilus_file_get_name (file1));
 
                 /* check for duplicate only if the name has changed */
-                if (g_strcmp0 (l1->data, file_name1->str) != 0) {
+                if (!g_string_equal (new_name, file_name1)) {
                         for (l2 = directory_files; l2 != NULL; l2 = l2->next) {
                                file2 = NAUTILUS_FILE (l2->data);
 
                                 g_string_erase (file_name2, 0, -1);
                                 g_string_append (file_name2, nautilus_file_get_name (file2));
 
-                                if (g_strcmp0 (l1->data, file_name2->str) == 0) {
-                                        result = g_list_prepend (result, strdup (l1->data));
+                                if (g_string_equal (new_name, file_name2)) {
+                                        result = g_list_prepend (result, strdup (new_name->str));
                                         break;
                                 }
                         }

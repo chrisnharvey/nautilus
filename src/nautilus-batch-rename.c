@@ -45,7 +45,6 @@ struct _NautilusBatchRename
         GtkWidget               *replace_mode_button;
         GtkWidget               *add_button;
         GtkWidget               *add_popover;
-        GtkWidget               *add_button_label;
         GtkWidget               *numbering_order_label;
         GtkWidget               *scrolled_window;
         GtkWidget               *numbering_order_popover;
@@ -185,13 +184,15 @@ rename_files_on_names_accepted (NautilusBatchRename *dialog,
         GList *l2;
         GList *selection;
         NautilusFile *file;
+        GString *new_name;
 
         selection = dialog->selection;
 
         for (l1 = selection, l2 = new_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
                 file = NAUTILUS_FILE (l1->data);
+                new_name = l2->data;
 
-                nautilus_rename_file (file, l2->data, NULL, NULL);
+                nautilus_rename_file (file, new_name->str, NULL, NULL);
         }
 
         gtk_window_close (GTK_WINDOW (dialog));
@@ -254,6 +255,7 @@ create_row_for_label (const gchar *new_text,
                                   NULL);
 
         gtk_label_set_ellipsize (GTK_LABEL (label_new), PANGO_ELLIPSIZE_END);
+        gtk_label_set_ellipsize (GTK_LABEL (label_old), PANGO_ELLIPSIZE_END);
 
         gtk_box_pack_end (GTK_BOX (box), label_new, TRUE, FALSE, 0);
         gtk_box_pack_end (GTK_BOX (box), icon, TRUE, FALSE, 0);
@@ -275,6 +277,7 @@ fill_display_listbox (NautilusBatchRename *dialog,
         GList *l2;
         GList *l;
         NautilusFile *file;
+        GString *new_name;
 
         /* clear rows from listbox (if any) */
         if (dialog->listbox_rows != NULL)
@@ -290,8 +293,9 @@ fill_display_listbox (NautilusBatchRename *dialog,
          * result changes */
         for (l1 = new_names, l2 = dialog->selection; l1 != NULL || l2 != NULL; l1 = l1->next, l2 = l2->next) {
                 file = NAUTILUS_FILE (l2->data);
+                new_name = l1->data;
 
-                row = create_row_for_label (l1->data, nautilus_file_get_name (file), TRUE);
+                row = create_row_for_label (new_name->str, nautilus_file_get_name (file), TRUE);
 
                 gtk_container_add (GTK_CONTAINER (dialog->conflict_listbox), row);
 
@@ -304,7 +308,7 @@ static void
 select_nth_conflict (NautilusBatchRename *dialog)
 {
         GList *l, *new_names, *l2;
-        GString *file_name, *display_text;
+        GString *file_name, *display_text, *new_name;
         gint n;
         NautilusFile *file;
 
@@ -321,11 +325,12 @@ select_nth_conflict (NautilusBatchRename *dialog)
 
         for (l = new_names; l != NULL; l = l->next) {
                 file = NAUTILUS_FILE (l2->data);
+                new_name = l->data;
 
-                /* first g_strcmp0 is for not selecting a file that doesn't change
+                /* g_strcmp0 is used for not selecting a file that doesn't change
                  * it's name */
-                if (g_strcmp0 ((gchar*) l->data, nautilus_file_get_name (file)) &&
-                    g_strcmp0 (file_name->str, (gchar*) l->data) == 0)
+                if (g_strcmp0 (new_name->str, nautilus_file_get_name (file)) &&
+                    g_string_equal (file_name, new_name))
                         break;
                 n++;
                 l2 = l2->next;
@@ -342,7 +347,7 @@ select_nth_conflict (NautilusBatchRename *dialog)
         gtk_label_set_label (GTK_LABEL (dialog->conflict_label),
                              display_text->str);
 
-        g_list_free_full (new_names, g_free);
+        g_list_free_full (new_names, string_free);
 }
 
 static void
@@ -414,7 +419,7 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
                         gtk_widget_set_sensitive (dialog->rename_button, TRUE);
         }
 
-        g_list_free_full (new_names, g_free);
+        g_list_free_full (new_names, string_free);
 }
 
 static void
@@ -429,7 +434,7 @@ file_names_widget_on_activate (NautilusBatchRename *dialog)
 
         /* if names are all right call rename_files_on_names_accepted*/
         rename_files_on_names_accepted (dialog, new_names);
-        g_list_free (new_names);
+        g_list_free_full (new_names, string_free);
 }
 
 static void
@@ -579,7 +584,6 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, format_mode_button);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_button);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_popover);
-        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_button_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, scrolled_window);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_order_popover);
@@ -649,9 +653,6 @@ nautilus_batch_rename_init (NautilusBatchRename *self)
                                                     NULL);
 
         self->mode = NAUTILUS_BATCH_RENAME_PREPEND;
-
-        gtk_label_set_markup_with_mnemonic (GTK_LABEL (self->add_button_label),
-                                            "<b>+</b> _Add");
 
         gtk_popover_bind_model (GTK_POPOVER (self->numbering_order_popover),
                                 G_MENU_MODEL (self->numbering_order_menu),

@@ -37,8 +37,11 @@ gint compare_files_by_first_created             (gconstpointer a,
 gint compare_files_by_last_created              (gconstpointer a,
                                                  gconstpointer b);
 
-void check_creation_date_for_selection   (NautilusBatchRename *dialog,
+void check_creation_date_for_selection          (NautilusBatchRename *dialog,
                                                  GList               *selection);
+
 gboolean selection_has_single_parent            (GList *selection);
+
+void string_free                                (gpointer mem);
 
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */
