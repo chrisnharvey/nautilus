@@ -1605,229 +1605,212 @@ report_delete_progress (CommonJob *job,
 	}
 }
 
-static void delete_file (CommonJob *job, GFile *file,
-			 gboolean *skipped_file,
-			 SourceInfo *source_info,
-			 TransferInfo *transfer_info,
-			 gboolean toplevel);
+typedef gboolean (*DeleteCallback) (GFile    *file,
+                                    GError   *error,
+                                    gpointer  error_func,
+                                    gpointer  callback_data);
 
-static void
-delete_dir (CommonJob *job, GFile *dir,
-	    gboolean *skipped_file,
-	    SourceInfo *source_info,
-	    TransferInfo *transfer_info,
-	    gboolean toplevel)
+static gboolean
+delete_file_recursively (GFile          *file,
+                         GCancellable   *cancellable,
+                         DeleteCallback  callback,
+                         gpointer        callback_data)
 {
-	GFileInfo *info;
-	GError *error;
-	GFile *file;
-	GFileEnumerator *enumerator;
-	char *primary, *secondary, *details;
-	int response;
-	gboolean skip_error;
-	gboolean local_skipped_file;
+        gboolean retry;
+        gboolean success;
 
-	local_skipped_file = FALSE;
-	
-	skip_error = should_skip_readdir_error (job, dir);
- retry:
-	error = NULL;
-	enumerator = g_file_enumerate_children (dir,
-						G_FILE_ATTRIBUTE_STANDARD_NAME,
-						G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-						job->cancellable,
-						&error);
-	if (enumerator) {
-		error = NULL;
-		
-		while (!job_aborted (job) &&
-		       (info = g_file_enumerator_next_file (enumerator, job->cancellable, skip_error?NULL:&error)) != NULL) {
-			file = g_file_get_child (dir,
-						 g_file_info_get_name (info));
-			delete_file (job, file, &local_skipped_file, source_info, transfer_info, FALSE);
-			g_object_unref (file);
-			g_object_unref (info);
-		}
-		g_file_enumerator_close (enumerator, job->cancellable, NULL);
-		g_object_unref (enumerator);
-		
-		if (error && IS_IO_ERROR (error, CANCELLED)) {
-			g_error_free (error);
-		} else if (error) {
-			primary = f (_("Error while deleting."));
-			details = NULL;
-			
-			if (IS_IO_ERROR (error, PERMISSION_DENIED)) {
-				secondary = f (_("Files in the folder “%B” cannot be deleted because you do "
-						 "not have permissions to see them."), dir);
-			} else {
-				secondary = f (_("There was an error getting information about the files in the folder “%B”."), dir);
-				details = error->message;
-			}
-			
-			response = run_warning (job,
-						primary,
-						secondary,
-						details,
-						FALSE,
-						CANCEL, _("_Skip files"),
-						NULL);
-			
-			g_error_free (error);
-			
-			if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-				abort_job (job);
-			} else if (response == 1) {
-				/* Skip: Do Nothing */
-				local_skipped_file = TRUE;
-			} else {
-				g_assert_not_reached ();
-			}
-		}
-		
-	} else if (IS_IO_ERROR (error, CANCELLED)) {
-		g_error_free (error);
-	} else {
-		primary = f (_("Error while deleting."));
-		details = NULL;
-		if (IS_IO_ERROR (error, PERMISSION_DENIED)) {
-			secondary = f (_("The folder “%B” cannot be deleted because you do not have "
-					 "permissions to read it."), dir);
-		} else {
-			secondary = f (_("There was an error reading the folder “%B”."), dir);
-			details = error->message;
-		}
-		
-		response = run_warning (job,
-					primary,
-					secondary,
-					details,
-					FALSE,
-					CANCEL, SKIP, RETRY,
-					NULL);
+        do {
+                g_autoptr (GError) error = NULL;
+                g_autoptr (GFileEnumerator) enumerator = NULL;
 
-		g_error_free (error);
+                retry = FALSE;
 
-		if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-			abort_job (job);
-		} else if (response == 1) {
-			/* Skip: Do Nothing  */
-			local_skipped_file = TRUE;
-		} else if (response == 2) {
-			goto retry;
-		} else {
-			g_assert_not_reached ();
-		}
-	}
+                success = g_file_delete (file, cancellable, &error);
+                if (success) {
+                        if (callback) {
+                                callback (file, NULL, NULL, callback_data);
+                        }
+                        break;
+                }
 
-	if (!job_aborted (job) &&
-	    /* Don't delete dir if there was a skipped file */
-	    !local_skipped_file) {
-		if (!g_file_delete (dir, job->cancellable, &error)) {
-			if (job->skip_all_error) {
-				goto skip;
-			}
-			primary = f (_("Error while deleting."));
-			secondary = f (_("Could not remove the folder %B."), dir);
-			details = error->message;
+                if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_EMPTY)) {
+                        if (callback) {
+                                retry = callback (file,
+                                                  error,
+                                                  g_file_delete,
+                                                  callback_data);
+                        }
+                        continue;
+                }
 
-			response = run_cancel_or_skip_warning (job,
-			                                       primary,
-			                                       secondary,
-			                                       details,
-			                                       source_info->num_files,
-			                                       source_info->num_files - transfer_info->num_files);
-			
-			if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-				abort_job (job);
-			} else if (response == 1) { /* skip all */
-				job->skip_all_error = TRUE;
-				local_skipped_file = TRUE;
-			} else if (response == 2) { /* skip */
-				local_skipped_file = TRUE;
-			} else {
-				g_assert_not_reached ();
-			}
-			
-		skip:
-			g_error_free (error);
-		} else {
-			nautilus_file_changes_queue_file_removed (dir);
-			transfer_info->num_files ++;
-			report_delete_progress (job, source_info, transfer_info);
-			return;
-		}
-	}
+                g_clear_error (&error);
 
-	if (local_skipped_file) {
-		*skipped_file = TRUE;
-	}
+                enumerator = g_file_enumerate_children (file,
+                                                        G_FILE_ATTRIBUTE_STANDARD_NAME,
+                                                        G_FILE_QUERY_INFO_NONE,
+                                                        cancellable, &error);
+
+                if (enumerator) {
+                        GFileInfo *info;
+
+                        success = TRUE;
+
+                        info = g_file_enumerator_next_file (enumerator,
+                                                            cancellable,
+                                                            &error);
+
+                        while (info != NULL) {
+                                g_autoptr (GFile) child;
+
+                                child = g_file_get_child (file,
+                                                          g_file_info_get_name (info));
+
+                                success = success && delete_file_recursively (child,
+                                                                              cancellable,
+                                                                              callback,
+                                                                              callback_data);
+
+                                g_object_unref (info);
+
+                                info = g_file_enumerator_next_file (enumerator,
+                                                                    cancellable,
+                                                                    &error);
+                        }
+
+                        if (error != NULL) {
+                                success = FALSE;
+                                if (callback) {
+                                       retry = callback (file,
+                                                         error,
+                                                         g_file_enumerator_next_file,
+                                                         callback_data);
+                                }
+                        }
+
+                        /* Retry deleting the directory only if all its children
+                         * were deleted successfully
+                         */
+                        retry = success;
+                } else {
+                        if (callback) {
+                                retry = callback (file,
+                                                  error,
+                                                  g_file_enumerate_children,
+                                                  callback_data);
+                        }
+                }
+        } while (retry);
+
+        return success;
 }
 
-static void
-delete_file (CommonJob *job, GFile *file,
-	     gboolean *skipped_file,
-	     SourceInfo *source_info,
-	     TransferInfo *transfer_info,
-	     gboolean toplevel)
+typedef struct {
+        CommonJob *job;
+        SourceInfo *source_info;
+        TransferInfo *transfer_info;
+} DeleteData;
+
+static gboolean
+file_deleted_callback (GFile    *file,
+                       GError   *error,
+                       gpointer  error_func,
+                       gpointer  callback_data)
 {
-	GError *error;
-	char *primary, *secondary, *details;
-	int response;
+        DeleteData *data = callback_data;
+        CommonJob *job;
+        SourceInfo *source_info;
+        TransferInfo *transfer_info;
+        char *primary;
+        char *secondary;
+        char *details = NULL;
+        int response;
 
-	if (should_skip_file (job, file)) {
-		*skipped_file = TRUE;
-		return;
-	}
-	
-	error = NULL;
-	if (g_file_delete (file, job->cancellable, &error)) {
-		nautilus_file_changes_queue_file_removed (file);
-		transfer_info->num_files ++;
-		report_delete_progress (job, source_info, transfer_info);
-		return;
-	}
+        job = data->job;
+        source_info = data->source_info;
+        transfer_info = data->transfer_info;
 
-	if (IS_IO_ERROR (error, NOT_EMPTY)) {
-		g_error_free (error);
-		delete_dir (job, file,
-			    skipped_file,
-			    source_info, transfer_info,
-			    toplevel);
-		return;
-		
-	} else if (IS_IO_ERROR (error, CANCELLED)) {
-		g_error_free (error);
-		
-	} else {
-		if (job->skip_all_error) {
-			goto skip;
-		}
-		primary = f (_("Error while deleting."));
-		secondary = f (_("There was an error deleting %B."), file);
-		details = error->message;
-		
-		response = run_cancel_or_skip_warning (job,
-		                                       primary,
-		                                       secondary,
-		                                       details,
-		                                       source_info->num_files,
-		                                       source_info->num_files - transfer_info->num_files);
+        if (error == NULL) {
+                nautilus_file_changes_queue_file_removed (file);
+                data->transfer_info->num_files ++;
+                report_delete_progress (data->job, data->source_info, data->transfer_info);
 
-		if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-			abort_job (job);
-		} else if (response == 1) { /* skip all */
-			job->skip_all_error = TRUE;
-		} else if (response == 2) { /* skip */
-			/* do nothing */
-		} else {
-			g_assert_not_reached ();
-		}
-	skip:
-		g_error_free (error);
-	}
-	
-	*skipped_file = TRUE;
+                return FALSE;
+        }
+
+        if (job_aborted (job) || job->skip_all_error || should_skip_file (job, file)) {
+                return FALSE;
+        }
+
+        if (error_func == g_file_delete) {
+                primary = f (_("Error while deleting."));
+                secondary = f (_("There was an error deleting %B."), file);
+                details = error->message;
+
+                response = run_cancel_or_skip_warning (job,
+                                                       primary,
+                                                       secondary,
+                                                       details,
+                                                       source_info->num_files,
+                                                       source_info->num_files - transfer_info->num_files);
+
+                if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
+                        abort_job (job);
+                } else if (response == 1) {
+                        /* skip all */
+                        job->skip_all_error = TRUE;
+                }
+        } else if (error_func == g_file_enumerate_children) {
+                primary = f (_("Error while deleting."));
+                if (IS_IO_ERROR (error, PERMISSION_DENIED)) {
+                        secondary = f (_("The folder “%B” cannot be deleted because you do not have "
+                                         "permissions to read it."), file);
+                } else {
+                        secondary = f (_("There was an error reading the folder “%B”."), file);
+                        details = error->message;
+                }
+
+                response = run_warning (job,
+                                        primary,
+                                        secondary,
+                                        details,
+                                        FALSE,
+                                        CANCEL, SKIP, RETRY,
+                                        NULL);
+
+                if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
+                        abort_job (job);
+                } else if (response == 2) {
+                        /* Retry operation */
+                        return TRUE;
+                }
+        } else if (error_func == g_file_enumerator_next_file) {
+                if (should_skip_readdir_error (job, file)) {
+                        return FALSE;
+                }
+
+                primary = f (_("Error while deleting."));
+                if (IS_IO_ERROR (error, PERMISSION_DENIED)) {
+                        secondary = f (_("Files in the folder “%B” cannot be deleted because you do "
+                                         "not have permissions to see them."), file);
+                } else {
+                        secondary = f (_("There was an error getting information about the files in the folder “%B”."), file);
+                        details = error->message;
+                }
+
+                response = run_warning (job,
+                                        primary,
+                                        secondary,
+                                        details,
+                                        FALSE,
+                                        CANCEL, _("_Skip files"),
+                                        NULL);
+
+                if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
+                        abort_job (job);
+                }
+        }
+
+        return FALSE;
 }
 
 static void
@@ -1837,7 +1820,7 @@ delete_files (CommonJob *job, GList *files, int *files_skipped)
 	GFile *file;
 	SourceInfo source_info;
 	TransferInfo transfer_info;
-	gboolean skipped_file;
+        DeleteData data;
 	
 	if (job_aborted (job)) {
 		return;
@@ -1855,20 +1838,30 @@ delete_files (CommonJob *job, GList *files, int *files_skipped)
 	
 	memset (&transfer_info, 0, sizeof (transfer_info));
 	report_delete_progress (job, &source_info, &transfer_info);
+
+        data.job = job;
+        data.source_info = &source_info;
+        data.transfer_info = &transfer_info;
 	
 	for (l = files;
 	     l != NULL && !job_aborted (job);
 	     l = l->next) {
+                gboolean success;
+
 		file = l->data;
 
-		skipped_file = FALSE;
-		delete_file (job, file,
-			     &skipped_file,
-			     &source_info, &transfer_info,
-			     TRUE);
-		if (skipped_file) {
-			(*files_skipped)++;
-		}
+                if (should_skip_file (job, file)) {
+                        (*files_skipped)++;
+                        continue;
+                }
+
+                success = delete_file_recursively (file, job->cancellable,
+                                                   file_deleted_callback,
+                                                   &data);
+
+                if (!success) {
+                        (*files_skipped)++;
+                }
 	}
 }
 
@@ -4139,131 +4132,87 @@ copy_move_directory (CopyMoveJob *copy_job,
 	return TRUE;
 }
 
+
+typedef struct {
+        CommonJob *job;
+        GFile *source;
+} DeleteExistingFileData;
+
 static gboolean
-remove_target_recursively (CommonJob *job,
-			   GFile *src,
-			   GFile *toplevel_dest,
-			   GFile *file)
+existing_file_removed_callback (GFile    *file,
+                                GError   *error,
+                                gpointer  error_func,
+                                gpointer  callback_data)
 {
-	GFileEnumerator *enumerator;
-	GError *error;
-	GFile *child;
-	gboolean stop;
-	char *primary, *secondary, *details;
-	int response;
-	GFileInfo *info;
+        DeleteExistingFileData *data = callback_data;
+        CommonJob *job;
+        GFile *source;
+        char *primary;
+        char *secondary;
+        char *details = NULL;
+        int response;
 
-	stop = FALSE;
-	
-	error = NULL;
-	enumerator = g_file_enumerate_children (file,
-						G_FILE_ATTRIBUTE_STANDARD_NAME,
-						G_FILE_QUERY_INFO_NOFOLLOW_SYMLINKS,
-						job->cancellable,
-						&error);
-	if (enumerator) {
-		error = NULL;
-		
-		while (!job_aborted (job) &&
-		       (info = g_file_enumerator_next_file (enumerator, job->cancellable, &error)) != NULL) {
-			child = g_file_get_child (file,
-						  g_file_info_get_name (info));
-			if (!remove_target_recursively (job, src, toplevel_dest, child)) {
-				stop = TRUE;
-				break;
-			}
-			g_object_unref (child);
-			g_object_unref (info);
-		}
-		g_file_enumerator_close (enumerator, job->cancellable, NULL);
-		g_object_unref (enumerator);
-		
-	} else if (IS_IO_ERROR (error, NOT_DIRECTORY)) {
-		/* Not a dir, continue */
-		g_error_free (error);
-		
-	} else if (IS_IO_ERROR (error, CANCELLED)) {
-		g_error_free (error);
-	} else {
-		if (job->skip_all_error) {
-			goto skip1;
-		}
-		
-		primary = f (_("Error while copying “%B”."), src);
-		secondary = f (_("Could not remove files from the already existing folder %F."), file);
-		details = error->message;
+        job = data->job;
+        source = data->source;
 
-		/* set show_all to TRUE here, as we don't know how many
-		 * files we'll end up processing yet.
-		 */
-		response = run_warning (job,
-					primary,
-					secondary,
-					details,
-					TRUE,
-					CANCEL, SKIP_ALL, SKIP,
-					NULL);
-		
-		if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-			abort_job (job);
-		} else if (response == 1) { /* skip all */
-			job->skip_all_error = TRUE;
-		} else if (response == 2) { /* skip */
-			/* do nothing */
-		} else {
-			g_assert_not_reached ();
-		}
-	skip1:
-		g_error_free (error);
-		
-		stop = TRUE;
-	}
+        if (error == NULL) {
+                nautilus_file_changes_queue_file_removed (file);
 
-	if (stop) {
-		return FALSE;
-	}
+                return FALSE;
+        }
 
-	error = NULL;
-	
-	if (!g_file_delete (file, job->cancellable, &error)) {
-		if (job->skip_all_error ||
-		    IS_IO_ERROR (error, CANCELLED)) {
-			goto skip2;
-		}
-		primary = f (_("Error while copying “%B”."), src);
-		secondary = f (_("Could not remove the already existing file %F."), file);
-		details = error->message;
+        if (job_aborted (job) || job->skip_all_error) {
+                return FALSE;
+        }
 
-		/* set show_all to TRUE here, as we don't know how many
-		 * files we'll end up processing yet.
-		 */
-		response = run_warning (job,
-					primary,
-					secondary,
-					details,
-					TRUE,
-					CANCEL, SKIP_ALL, SKIP,
-					NULL);
-		
-		if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
-			abort_job (job);
-		} else if (response == 1) { /* skip all */
-			job->skip_all_error = TRUE;
-		} else if (response == 2) { /* skip */
-			/* do nothing */
-		} else {
-			g_assert_not_reached ();
-		}
+        if (error_func == g_file_delete) {
+                primary = f (_("Error while copying “%B”."), source);
+                secondary = f (_("Could not remove the already existing file %F."),
+                               file);
+                details = error->message;
 
-	skip2:
-		g_error_free (error);
-		
-		return FALSE;
-	}
-	nautilus_file_changes_queue_file_removed (file);
-	
-	return TRUE;
-	
+                /* set show_all to TRUE here, as we don't know how many
+                 * files we'll end up processing yet.
+                 */
+                response = run_warning (job,
+                                        primary,
+                                        secondary,
+                                        details,
+                                        TRUE,
+                                        CANCEL, SKIP_ALL, SKIP,
+                                        NULL);
+
+                if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
+                        abort_job (job);
+                } else if (response == 1) { /* skip all */
+                        job->skip_all_error = TRUE;
+                }
+        } else if (error_func == g_file_enumerate_children) {
+                primary = f (_("Error while copying “%B”."), source);
+                secondary = f (_("Could not remove files from the already existing folder %F."),
+                               file);
+                details = error->message;
+
+                /* set show_all to TRUE here, as we don't know how many
+                 * files we'll end up processing yet.
+                 */
+                response = run_warning (job,
+                                        primary,
+                                        secondary,
+                                        details,
+                                        TRUE,
+                                        CANCEL, SKIP_ALL, SKIP,
+                                        NULL);
+
+                if (response == 0 || response == GTK_RESPONSE_DELETE_EVENT) {
+                        abort_job (job);
+                } else if (response == 1) {
+                        /* skip all */
+                        job->skip_all_error = TRUE;
+                }
+        }
+
+        return FALSE;
 }
 
 typedef struct {
@@ -4743,12 +4692,23 @@ copy_move_file (CopyMoveJob *copy_job,
 	
 	else if (overwrite &&
 		 IS_IO_ERROR (error, IS_DIRECTORY)) {
+                gboolean existing_file_deleted;
+                DeleteExistingFileData data;
 
 		g_error_free (error);
-		
-		if (remove_target_recursively (job, src, dest, dest)) {
-			goto retry;
-		}
+
+                data.job = job;
+                data.source = src;
+
+                existing_file_deleted =
+                        delete_file_recursively (dest,
+                                                 job->cancellable,
+                                                 existing_file_removed_callback,
+                                                 &data);
+
+                if (existing_file_deleted) {
+                        goto retry;
+                }
 	}
 	
 	/* Needs to recurse */
