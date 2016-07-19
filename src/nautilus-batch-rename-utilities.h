@@ -10,9 +10,11 @@ GList* get_new_names_list                       (NautilusBatchRenameMode      mo
                                                  gchar                       *entry_text,
                                                  gchar                       *replace_text);
 
-GList* list_has_duplicates                      (NautilusDirectory           *model,
+GList* list_has_duplicates                      (NautilusBatchRename         *dialog,
+                                                 NautilusDirectory           *model,
                                                  GList                       *names,
                                                  GList                       *selection,
+                                                 GList                       *parents_list,
                                                  gboolean                     same_parent);
 
 GList* nautilus_batch_rename_sort               (GList                       *selection,
@@ -43,5 +45,12 @@ void check_creation_date_for_selection          (NautilusBatchRename *dialog,
 gboolean selection_has_single_parent            (GList *selection);
 
 void string_free                                (gpointer mem);
+
+GList* distinct_file_parents                    (GList *selection);
+
+gboolean file_name_changed                      (GList        *selection,
+                                                 GList        *new_names,
+                                                 GString      *old_name,
+                                                 gchar        *parent_uri);
 
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

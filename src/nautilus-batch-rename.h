@@ -36,6 +36,10 @@ GtkWidget*      nautilus_batch_rename_new       (GList                  *selecti
 void            query_finished                  (NautilusBatchRename    *dialog,
                                                  GHashTable             *hash_table);
 
+void            check_conflict_for_file         (NautilusBatchRename    *dialog,
+                                                 NautilusDirectory      *directory,
+                                                 GList                  *files);
+
 G_END_DECLS
 
 #endif

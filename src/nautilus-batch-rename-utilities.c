@@ -13,12 +13,12 @@
 
 typedef struct {
         NautilusFile *file;
-        gint *position;
+        gint         *position;
 } CreateDateElem;
 
 typedef struct {
         NautilusBatchRename *dialog;
-        GHashTable *hash_table;
+        GHashTable          *hash_table;
 } QueryData;
 
 static void cursor_callback (GObject      *object,
@@ -151,29 +151,95 @@ get_new_names_list (NautilusBatchRenameMode      mode,
         return result;
 }
 
-GList*
-list_has_duplicates (NautilusDirectory *model,
-                     GList             *new_names,
-                     GList             *selection,
-                     gboolean           same_parent)
+/* If there is a file that generates a conflict, there is a case where that isn't
+ * actually a conflict. This case is when the file that generates the conflict is
+ * in the selection and this file changed it's name */
+gboolean
+file_name_changed (GList        *selection,
+                   GList        *new_names,
+                   GString      *old_name,
+                   gchar        *parent_uri)
 {
-        /* handling conflicts for files in different directories is missing */
-        if (!same_parent)
-                return NULL;
+        GList *l1, *l2;
+        NautilusFile *selection_file;
+        gchar *name1;
+        GString *new_name;
+        gchar *selection_parent_uri;
 
-        GList *directory_files, *l1, *l2, *result;
+        l2 = new_names;
+
+        for (l1 = selection; l1 != NULL; l1 = l1->next) {
+                selection_file = NAUTILUS_FILE (l1->data);
+                name1 = nautilus_file_get_name (selection_file);
+
+                selection_parent_uri = nautilus_file_get_parent_uri (selection_file);
+
+                if (g_strcmp0 (name1, old_name->str) == 0) {
+                        new_name = l2->data;
+
+                        /* if the name didn't change, then there's a conflict */
+                        if (g_string_equal (old_name, new_name) &&
+                            (parent_uri == NULL || g_strcmp0 (parent_uri, selection_parent_uri) == 0))
+                                return FALSE;
+
+
+                        /* if this file exists and it changed it's name, then there's no
+                         * conflict */
+                        return TRUE;
+                }
+
+                l2 = l2->next;
+        }
+
+        /* such a file doesn't exist so there actually is a conflict */
+        return FALSE;
+}
+
+static void
+got_files_callback (NautilusDirectory *directory, GList *files, gpointer callback_data)
+{
+        check_conflict_for_file (NAUTILUS_BATCH_RENAME (callback_data),
+                                 directory,
+                                 files);
+}
+
+GList*
+list_has_duplicates (NautilusBatchRename *dialog,
+                     NautilusDirectory   *model,
+                     GList               *new_names,
+                     GList               *selection,
+                     GList               *parents_list,
+                     gboolean             same_parent)
+{
+        GList *directory_files, *l1, *l2, *l3, *result;
         NautilusFile *file1, *file2;
         GString *file_name1, *file_name2, *new_name;
+        NautilusDirectory *parent;
 
-        directory_files = nautilus_directory_get_file_list (model);
+        result = NULL;
 
         file_name1 = g_string_new ("");
         file_name2 = g_string_new ("");
 
-        result = NULL;
+        if (!same_parent) {
+                for (l1 = parents_list; l1 != NULL; l1 = l1->next) {
+                        parent = nautilus_directory_get_by_uri (l1->data);
+
+                        nautilus_directory_call_when_ready (parent,
+                                                            NAUTILUS_FILE_ATTRIBUTE_INFO,
+                                                            TRUE,
+                                                            got_files_callback,
+                                                            dialog);
+
+                }
+            return NULL;
+        }
+
+        directory_files = nautilus_directory_get_file_list (model);
+        l3 = selection;
 
         for (l1 = new_names; l1 != NULL; l1 = l1->next) {
-                file1 = NAUTILUS_FILE (selection->data);
+                file1 = NAUTILUS_FILE (l3->data);
                 new_name = l1->data;
 
                 g_string_erase (file_name1, 0, -1);
@@ -187,14 +253,15 @@ list_has_duplicates (NautilusDirectory *model,
                                 g_string_erase (file_name2, 0, -1);
                                 g_string_append (file_name2, nautilus_file_get_name (file2));
 
-                                if (g_string_equal (new_name, file_name2)) {
+                                if (g_string_equal (new_name, file_name2) &&
+                                    !file_name_changed (selection, new_names, new_name, NULL)) {
                                         result = g_list_prepend (result, strdup (new_name->str));
                                         break;
                                 }
                         }
                 }
 
-                selection = selection->next;
+                l3 = l3->next;
         }
 
         g_string_free (file_name1, TRUE);
@@ -524,4 +591,36 @@ selection_has_single_parent (GList *selection)
         g_string_free (parent_name2, TRUE);
 
         return TRUE;
+}
+
+GList*
+distinct_file_parents (GList *selection)
+{
+        GList *result, *l1, *l2;
+        NautilusFile *file;
+        gboolean exists;
+        gchar *parent_uri;
+
+        result = NULL;
+
+        for (l1 = selection; l1 != NULL; l1 = l1->next) {
+                exists = FALSE;
+
+                file = NAUTILUS_FILE (l1->data);
+                parent_uri = nautilus_file_get_parent_uri (file);
+
+                for (l2 = result; l2 != NULL; l2 = l2->next)
+                        if (g_strcmp0 (parent_uri, l2->data) == 0) {
+                                exists = TRUE;
+                                break;
+                        }
+
+                if (!exists) {
+                        result = g_list_prepend (result, parent_uri);
+                } else {
+                        g_free (parent_uri);
+                }
+        }
+
+        return result;
 }

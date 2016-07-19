@@ -71,8 +71,14 @@ struct _NautilusBatchRename
         /* the number of the currently selected conflict */
         gint                     selected_conflict;
         /* total conflicts number */
-        gint                     conflcts_number;
+        gint                     conflicts_number;
+
+        gint                     checked_parents;
         GList                   *duplicates;
+        GList                   *distinct_parents;
+
+        GtkSizeGroup            *size_group1;
+        GtkSizeGroup            *size_group2;
 };
 
 static void     file_names_widget_entry_on_changed      (NautilusBatchRename    *dialog);
@@ -219,9 +225,10 @@ listbox_header_func (GtkListBoxRow         *row,
 }
 
 static GtkWidget*
-create_row_for_label (const gchar *new_text,
-                      const gchar *old_text,
-                      gboolean     show_separator)
+create_row_for_label (NautilusBatchRename *dialog,
+                      const gchar         *new_text,
+                      const gchar         *old_text,
+                      gboolean             show_separator)
 {
         GtkWidget *row;
         GtkWidget *label_new;
@@ -257,6 +264,9 @@ create_row_for_label (const gchar *new_text,
         gtk_label_set_ellipsize (GTK_LABEL (label_new), PANGO_ELLIPSIZE_END);
         gtk_label_set_ellipsize (GTK_LABEL (label_old), PANGO_ELLIPSIZE_END);
 
+        gtk_size_group_add_widget (dialog->size_group1, label_new);
+        gtk_size_group_add_widget (dialog->size_group2, label_old);
+
         gtk_box_pack_end (GTK_BOX (box), label_new, TRUE, FALSE, 0);
         gtk_box_pack_end (GTK_BOX (box), icon, TRUE, FALSE, 0);
         gtk_box_pack_end (GTK_BOX (box), label_old, TRUE, FALSE, 0);
@@ -288,6 +298,8 @@ fill_display_listbox (NautilusBatchRename *dialog,
 
         g_list_free (dialog->listbox_rows);
         dialog->listbox_rows = NULL;
+        dialog->size_group1 = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
+        dialog->size_group2 = gtk_size_group_new (GTK_SIZE_GROUP_HORIZONTAL);
 
         /* add rows to a list so that they can be removed when the renaming
          * result changes */
@@ -295,7 +307,7 @@ fill_display_listbox (NautilusBatchRename *dialog,
                 file = NAUTILUS_FILE (l2->data);
                 new_name = l1->data;
 
-                row = create_row_for_label (new_name->str, nautilus_file_get_name (file), TRUE);
+                row = create_row_for_label (dialog, new_name->str, nautilus_file_get_name (file), TRUE);
 
                 gtk_container_add (GTK_CONTAINER (dialog->conflict_listbox), row);
 
@@ -304,15 +316,33 @@ fill_display_listbox (NautilusBatchRename *dialog,
         }
 }
 
+static gboolean
+file_has_conflict (NautilusBatchRename *dialog,
+                   GString             *new_name)
+{
+        GList *l;
+
+        for (l = dialog->duplicates; l != NULL; l = l->next) {
+                if (g_strcmp0 (l->data, new_name->str) == 0)
+                        return TRUE;
+        }
+
+        return FALSE;
+}
+
 static void
 select_nth_conflict (NautilusBatchRename *dialog)
 {
         GList *l, *new_names, *l2;
         GString *file_name, *display_text, *new_name;
-        gint n;
+        gint n, nth_conflict;
+        gint selected_row;
         NautilusFile *file;
 
-        n = dialog->selected_conflict;
+        selected_row = 0;
+
+        nth_conflict = dialog->selected_conflict;
+        n = nth_conflict;
         l = g_list_nth (dialog->duplicates, n);
 
         file_name = g_string_new (l->data);
@@ -330,8 +360,13 @@ select_nth_conflict (NautilusBatchRename *dialog)
                 /* g_strcmp0 is used for not selecting a file that doesn't change
                  * it's name */
                 if (g_strcmp0 (new_name->str, nautilus_file_get_name (file)) &&
-                    g_string_equal (file_name, new_name))
+                    g_string_equal (file_name, new_name) &&
+                    nth_conflict == 0)
                         break;
+
+                if (file_has_conflict (dialog, new_name))
+                        nth_conflict--;
+
                 n++;
                 l2 = l2->next;
         }
@@ -358,7 +393,7 @@ move_next_conflict_down (NautilusBatchRename *dialog)
         if (dialog->selected_conflict == 1)
                 gtk_widget_set_sensitive (dialog->conflict_up, TRUE);
 
-        if (dialog->selected_conflict == dialog->conflcts_number - 1)
+        if (dialog->selected_conflict == dialog->conflicts_number - 1)
                 gtk_widget_set_sensitive (dialog->conflict_down, FALSE);
 
         select_nth_conflict (dialog);
@@ -372,29 +407,16 @@ move_next_conflict_up (NautilusBatchRename *dialog)
         if (dialog->selected_conflict == 0)
                 gtk_widget_set_sensitive (dialog->conflict_up, FALSE);
 
-        if (dialog->selected_conflict == dialog->conflcts_number - 2)
+        if (dialog->selected_conflict == dialog->conflicts_number - 2)
                 gtk_widget_set_sensitive (dialog->conflict_down, TRUE);
 
         select_nth_conflict (dialog);
 }
 
 static void
-file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
+update_conflicts (NautilusBatchRename *dialog,
+                  GList               *new_names)
 {
-        GList *new_names;
-
-        if(dialog->selection == NULL)
-                return;
-
-        if (dialog->duplicates != NULL)
-                g_list_free_full (dialog->duplicates, g_free);
-
-        new_names = batch_rename_get_new_names(dialog);
-        dialog->duplicates = list_has_duplicates (dialog->model,
-                                                  new_names,
-                                                  dialog->selection,
-                                                  dialog->same_parent);
-
         /* Update listbox that shows the result of the renaming for each file */
         fill_display_listbox (dialog, new_names);
 
@@ -405,12 +427,16 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
                 gtk_widget_show (dialog->conflict_box);
 
                 dialog->selected_conflict = 0;
-                dialog->conflcts_number = g_list_length (dialog->duplicates);
+                dialog->conflicts_number = g_list_length (dialog->duplicates);
 
                 select_nth_conflict (dialog);
 
                 gtk_widget_set_sensitive (dialog->conflict_up, FALSE);
-                gtk_widget_set_sensitive (dialog->conflict_down, TRUE);
+
+                if (g_list_length (dialog->duplicates) == 1)
+                    gtk_widget_set_sensitive (dialog->conflict_down, FALSE);
+                else
+                    gtk_widget_set_sensitive (dialog->conflict_down, TRUE);
         } else {
                 gtk_widget_hide (dialog->conflict_box);
 
@@ -418,6 +444,96 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
                 if (dialog->duplicates == NULL && !gtk_widget_is_sensitive (dialog->rename_button))
                         gtk_widget_set_sensitive (dialog->rename_button, TRUE);
         }
+}
+
+
+void
+check_conflict_for_file (NautilusBatchRename *dialog,
+                         NautilusDirectory   *directory,
+                         GList               *files)
+{
+        gchar *current_directory, *parent_uri, *name;
+        NautilusFile *file1, *file2;
+        GString *new_name, *file_name1, *file_name2;
+        GList *l1, *l2, *l3;
+        GList *new_names;
+
+        new_names = batch_rename_get_new_names (dialog);
+
+        file_name1 = g_string_new ("");
+        file_name2 = g_string_new ("");
+
+        current_directory = nautilus_directory_get_uri (directory);
+
+        for (l1 = dialog->selection, l2 = new_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                file1 = NAUTILUS_FILE (l1->data);
+
+                g_string_erase (file_name1, 0, -1);
+                name = nautilus_file_get_name (file1);
+                g_string_append (file_name1, name);
+                g_free (name);
+
+                parent_uri = nautilus_file_get_parent_uri (file1);
+
+                new_name = l2->data;
+
+                /* check for duplicate only if the parent of the current file is
+                 * the current directory and the name of the file has changed */
+                if (g_strcmp0 (parent_uri, current_directory) == 0 &&
+                    !g_string_equal (new_name, file_name1))
+                         for (l3 = files; l3 != NULL; l3 = l3->next) {
+                                file2 = NAUTILUS_FILE (l3->data);
+
+                                g_string_erase (file_name2, 0, -1);
+                                name = nautilus_file_get_name (file2);
+                                g_string_append (file_name2, name);
+                                g_free (name);
+
+                                if (g_string_equal (new_name, file_name2) &&
+                                    !file_name_changed (dialog->selection, new_names, new_name, parent_uri)) {
+                                        dialog->duplicates = g_list_prepend (dialog->duplicates,
+                                                                             strdup (new_name->str));
+                                        break;
+                                }
+                        }
+        }
+
+        /* check if this is the last call of the callback. Update
+         * the listbox with the conflicts if it is. */
+        if (dialog->checked_parents == g_list_length (dialog->distinct_parents) - 1) {
+                dialog->duplicates = g_list_reverse (dialog->duplicates);
+
+                update_conflicts (dialog, new_names);
+        }
+
+        dialog->checked_parents++;
+
+        g_free (current_directory);
+}
+
+static void
+file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
+{
+        GList *new_names;
+
+        if(dialog->selection == NULL)
+                return;
+
+        if (dialog->duplicates != NULL) {
+                g_list_free_full (dialog->duplicates, g_free);
+                dialog->duplicates = NULL;
+        }
+
+        new_names = batch_rename_get_new_names(dialog);
+        dialog->checked_parents = 0;
+        dialog->duplicates = list_has_duplicates (dialog,
+                                                  dialog->model,
+                                                  new_names,
+                                                  dialog->selection,
+                                                  dialog->distinct_parents,
+                                                  dialog->same_parent);
+
+        update_conflicts (dialog, new_names);
 
         g_list_free_full (new_names, string_free);
 }
@@ -556,6 +672,8 @@ nautilus_batch_rename_finalize (GObject *object)
         if (dialog->create_date != NULL)
                 g_hash_table_destroy (dialog->create_date);
 
+        g_list_free_full (dialog->distinct_parents, g_free);
+
         G_OBJECT_CLASS (nautilus_batch_rename_parent_class)->finalize (object);
 }
 
@@ -633,6 +751,10 @@ nautilus_batch_rename_new (GList *selection, NautilusDirectory *model, NautilusW
         nautilus_batch_rename_initialize_actions (dialog);
 
         dialog->same_parent = selection_has_single_parent (dialog->selection);
+        if (!dialog->same_parent)
+                dialog->distinct_parents = distinct_file_parents (dialog->selection);
+        else
+                dialog->distinct_parents = NULL;
 
         /* update display text */
         file_names_widget_entry_on_changed (dialog);
