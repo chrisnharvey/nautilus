@@ -79,6 +79,8 @@ typedef struct {
         GHashTable *notifications;
 
         NautilusFileUndoManager *undo_manager;
+
+        AutoarPref *ar_preferences;
 } NautilusApplicationPrivate;
 
 G_DEFINE_TYPE_WITH_PRIVATE (NautilusApplication, nautilus_application, GTK_TYPE_APPLICATION);
@@ -550,6 +552,8 @@ nautilus_application_finalize (GObject *object)
 	g_clear_object (&priv->fdb_manager);
 	g_clear_object (&priv->search_provider);
 
+        g_clear_object (&priv->ar_preferences);
+
 	g_list_free (priv->windows);
 
         g_hash_table_destroy (priv->notifications);
@@ -953,6 +957,7 @@ static void
 nautilus_application_init (NautilusApplication *self)
 {
         NautilusApplicationPrivate *priv;
+        g_autoptr (GSettings) archive_settings;
 
         priv = nautilus_application_get_instance_private (self);
 
@@ -967,6 +972,9 @@ nautilus_application_init (NautilusApplication *self)
 
         nautilus_ensure_extension_points ();
         nautilus_ensure_extension_builtins ();
+
+        archive_settings = g_settings_new (AUTOAR_PREF_DEFAULT_GSCHEMA_ID);
+        priv->ar_preferences = autoar_pref_new_with_gsettings (archive_settings);
 }
 
 static void
@@ -1043,6 +1051,16 @@ nautilus_application_get_default (void)
         self = NAUTILUS_APPLICATION (g_application_get_default ());
 
         return self;
+}
+
+AutoarPref *
+nautilus_application_get_autoar_preferences (NautilusApplication *self)
+{
+        NautilusApplicationPrivate *priv;
+
+        priv = nautilus_application_get_instance_private (self);
+
+        return priv->ar_preferences;
 }
 
 void

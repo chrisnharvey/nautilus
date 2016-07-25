@@ -22,6 +22,7 @@
 #include <config.h>
 #include "nautilus-file.h"
 
+#include "nautilus-application.h"
 #include "nautilus-directory-notify.h"
 #include "nautilus-directory-private.h"
 #include "nautilus-signaller.h"
@@ -51,6 +52,7 @@
 #include <glib/gstdio.h>
 #include <gio/gio.h>
 #include <glib.h>
+#include <gnome-autoar/autoar.h>
 #include <gdesktop-enums.h>
 #include <libnautilus-extension/nautilus-file-info.h>
 #include <libnautilus-extension/nautilus-extension-private.h>
@@ -7013,38 +7015,13 @@ real_is_special_link (NautilusFile *file)
 gboolean
 nautilus_file_is_archive (NautilusFile *file)
 {
-	char *mime_type;
-	int i;
-	static const char * archive_mime_types[] = { "application/x-gtar",
-						     "application/x-zip",
-						     "application/x-zip-compressed",
-						     "application/zip",
-						     "application/x-zip",
-						     "application/x-tar",
-						     "application/x-7z-compressed",
-						     "application/x-rar",
-						     "application/x-rar-compressed",
-						     "application/x-jar",
-						     "application/x-java-archive",
-						     "application/x-war",
-						     "application/x-ear",
-						     "application/x-arj",
-						     "application/x-gzip",
-						     "application/x-bzip-compressed-tar",
-						     "application/x-compressed-tar" };
+        g_autofree char *mime_type;
+        AutoarPref *ar_preferences;
 
-	g_return_val_if_fail (file != NULL, FALSE);
+        ar_preferences = nautilus_application_get_autoar_preferences (nautilus_application_get_default ());
+        mime_type = nautilus_file_get_mime_type (file);
 
-	mime_type = nautilus_file_get_mime_type (file);
-	for (i = 0; i < G_N_ELEMENTS (archive_mime_types); i++) {
-		if (!strcmp (mime_type, archive_mime_types[i])) {
-			g_free (mime_type);
-			return TRUE;
-		}
-	}
-	g_free (mime_type);
-
-	return FALSE;
+        return autoar_pref_check_mime_type_d (ar_preferences, mime_type);
 }
 
 

@@ -24,6 +24,7 @@
 #include <gdk/gdk.h>
 #include <gio/gio.h>
 #include <gtk/gtk.h>
+#include <gnome-autoar/autoar.h>
 
 #include "nautilus-bookmark-list.h"
 #include "nautilus-window.h"
@@ -71,6 +72,7 @@ void nautilus_application_open_location_full (NautilusApplication     *applicati
                                               NautilusWindowSlot      *target_slot);
 
 NautilusApplication *nautilus_application_get_default (void);
+AutoarPref * nautilus_application_get_autoar_preferences (NautilusApplication *self);
 void nautilus_application_send_notification (NautilusApplication *self,
                                              const gchar         *notification_id,
                                              GNotification       *notification);
