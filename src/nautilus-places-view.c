@@ -92,6 +92,7 @@ open_location_cb (NautilusPlacesView *view,
                 nautilus_mime_activate_file (GTK_WINDOW (window),
                                              NAUTILUS_WINDOW_SLOT (slot),
                                              file,
+                                             file,
                                              path,
                                              flags);
                 nautilus_file_unref (file);

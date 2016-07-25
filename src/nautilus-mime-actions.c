@@ -43,6 +43,7 @@
 #include "nautilus-program-choosing.h"
 #include "nautilus-global-preferences.h"
 #include "nautilus-signaller.h"
+#include "nautilus-application.h"
 
 #define DEBUG_FLAG NAUTILUS_DEBUG_MIME
 #include "nautilus-debug.h"
@@ -54,6 +55,7 @@ typedef enum {
 	ACTIVATION_ACTION_LAUNCH_IN_TERMINAL,
 	ACTIVATION_ACTION_OPEN_IN_VIEW,
 	ACTIVATION_ACTION_OPEN_IN_APPLICATION,
+        ACTIVATION_ACTION_EXTRACT,
 	ACTIVATION_ACTION_DO_NOTHING,
 } ActivationAction;
 
@@ -71,6 +73,7 @@ typedef struct {
 	NautilusWindowSlot *slot;
 	gpointer window;
 	GtkWindow *parent_window;
+        NautilusFile *parent_directory;
 	GCancellable *cancellable;
 	GList *locations;
 	GList *mountables;
@@ -677,6 +680,13 @@ get_activation_action (NautilusFile *file)
 {
 	ActivationAction action;
 	char *activation_uri;
+        gboolean can_extract;
+        can_extract =  g_settings_get_boolean (nautilus_preferences,
+                                               NAUTILUS_PREFERENCES_AUTOMATIC_DECOMPRESSION);
+
+        if (can_extract && nautilus_file_is_archive (file)) {
+                return ACTIVATION_ACTION_EXTRACT;
+        }
 
 	if (nautilus_file_is_nautilus_link (file)) {
 		return ACTIVATION_ACTION_LAUNCH_DESKTOP_FILE;
@@ -690,7 +700,7 @@ get_activation_action (NautilusFile *file)
 	action = ACTIVATION_ACTION_DO_NOTHING;
 	if (nautilus_file_is_launchable (file)) {
 		char *executable_path;
-		
+
 		action = ACTIVATION_ACTION_LAUNCH;
 		
 		executable_path = g_filename_from_uri (activation_uri, NULL, NULL);
@@ -712,6 +722,12 @@ get_activation_action (NautilusFile *file)
 	g_free (activation_uri);
 
 	return action;
+}
+
+gboolean
+nautilus_mime_file_extracts (NautilusFile *file)
+{
+        return get_activation_action (file) == ACTIVATION_ACTION_EXTRACT;
 }
 
 gboolean
@@ -871,6 +887,9 @@ activation_parameters_free (ActivateParameters *parameters)
 	if (parameters->parent_window) {
 		g_object_remove_weak_pointer (G_OBJECT (parameters->parent_window), (gpointer *)&parameters->parent_window);
 	}
+        if (parameters->parent_directory) {
+                nautilus_file_unref (parameters->parent_directory);
+        }
 	g_object_unref (parameters->cancellable);
 	launch_location_list_free (parameters->locations);
 	nautilus_file_list_free (parameters->mountables);
@@ -980,6 +999,7 @@ confirm_multiple_windows (GtkWindow *parent_window,
 typedef struct {
 	NautilusWindowSlot *slot;
 	GtkWindow *parent_window;
+        NautilusFile *parent_directory;
 	NautilusFile *file;
 	GList *files;
 	NautilusWindowOpenFlags flags;
@@ -999,6 +1019,9 @@ activate_parameters_install_free (ActivateParametersInstall *parameters_install)
 	if (parameters_install->parent_window) {
 		g_object_remove_weak_pointer (G_OBJECT (parameters_install->parent_window), (gpointer *)&parameters_install->parent_window);
 	}
+        if (parameters_install->parent_directory) {
+                nautilus_file_unref (parameters_install->parent_directory);
+        }
 
 	if (parameters_install->proxy != NULL) {
 	        g_object_unref (parameters_install->proxy);
@@ -1195,6 +1218,7 @@ search_for_application_dbus_call_notify_cb (GDBusProxy   *proxy,
 	/* activate the file again */
 	nautilus_mime_activate_files (parameters_install->parent_window,
 	                              parameters_install->slot,
+                                      parameters_install->parent_directory,
 	                              parameters_install->files,
 	                              parameters_install->activation_directory,
 	                              parameters_install->flags,
@@ -1337,6 +1361,9 @@ application_unhandled_uri (ActivateParameters *parameters, char *uri)
 		parameters_install->parent_window = parameters->parent_window;
 		g_object_add_weak_pointer (G_OBJECT (parameters_install->parent_window), (gpointer *)&parameters_install->parent_window);
 	}
+        if (parameters->parent_directory) {
+                parameters_install->parent_directory = nautilus_file_ref (parameters->parent_directory);
+        }
 	parameters_install->activation_directory = g_strdup (parameters->activation_directory);
 	parameters_install->file = file;
 	parameters_install->files = get_file_list_for_launch_locations (parameters->locations);
@@ -1506,6 +1533,7 @@ activate_files (ActivateParameters *parameters)
 	GList *open_in_app_uris;
 	GList *open_in_app_parameters;
 	GList *unhandled_open_in_app_uris;
+        GList *extract_files;
 	ApplicationLaunchParameters *one_parameters;
 	GList *open_in_view_files;
 	GList *l;
@@ -1528,6 +1556,7 @@ activate_files (ActivateParameters *parameters)
 	launch_in_terminal_files = NULL;
 	open_in_app_uris = NULL;
 	open_in_view_files = NULL;
+        extract_files = NULL;
 
 	for (l = parameters->locations; l != NULL; l = l->next) {
 		location = l->data;
@@ -1560,6 +1589,9 @@ activate_files (ActivateParameters *parameters)
 		case ACTIVATION_ACTION_OPEN_IN_VIEW :
 			open_in_view_files = g_list_prepend (open_in_view_files, file);
 			break;
+                case ACTIVATION_ACTION_EXTRACT :
+                        extract_files = g_list_prepend (extract_files, file);
+                        break;
 		case ACTIVATION_ACTION_OPEN_IN_APPLICATION :
 			open_in_app_uris = g_list_prepend (open_in_app_uris, location->uri);
 			break;
@@ -1673,6 +1705,73 @@ activate_files (ActivateParameters *parameters)
 			g_free (uri);
 		}
 	}
+
+        extract_files = g_list_reverse (extract_files);
+        if (extract_files) {
+                g_autoptr (GFile) output = NULL;
+                gboolean directory_supports_extracting;
+
+                directory_supports_extracting =
+                        nautilus_file_can_write (parameters->parent_directory) &&
+                        !nautilus_file_is_in_trash (parameters->parent_directory) &&
+                        !nautilus_file_is_in_search (parameters->parent_directory) &&
+                        !nautilus_file_is_in_recent (parameters->parent_directory) &&
+                        !nautilus_file_is_remote (parameters->parent_directory);
+
+                if (directory_supports_extracting) {
+                        output = nautilus_file_get_location (parameters->parent_directory); 
+                } else {
+                        GtkWidget *dialog;
+                        gint response;
+
+                        pause_activation_timed_cancel (parameters);
+
+                        dialog = gtk_file_chooser_dialog_new (_("Select Extract Destination"),
+                                                              GTK_WINDOW (parameters->parent_window),
+                                                              GTK_FILE_CHOOSER_ACTION_SELECT_FOLDER,
+                                                              _("_Cancel"), GTK_RESPONSE_CANCEL,
+                                                              _("_Select"), GTK_RESPONSE_OK,
+                                                              NULL);
+                        gtk_file_chooser_set_local_only (GTK_FILE_CHOOSER (dialog), FALSE);
+
+                        gtk_dialog_set_default_response (GTK_DIALOG (dialog),
+                                                         GTK_RESPONSE_OK);
+
+                        gtk_window_set_destroy_with_parent (GTK_WINDOW (dialog), TRUE);
+                        gtk_window_set_modal (GTK_WINDOW (dialog), TRUE);
+
+                        if (parameters->parent_directory) {
+                                g_autofree char *uri;
+
+                                uri = nautilus_file_get_uri (parameters->parent_directory);
+                                gtk_file_chooser_set_current_folder_uri (GTK_FILE_CHOOSER (dialog), uri);     
+                        }
+
+                        response = gtk_dialog_run (GTK_DIALOG (dialog));
+                        if (response == GTK_RESPONSE_OK) {
+                                output = gtk_file_chooser_get_file (GTK_FILE_CHOOSER (dialog));
+                        }
+
+                        gtk_widget_destroy (dialog);
+
+                        unpause_activation_timed_cancel (parameters);
+                }
+
+                if (output != NULL) {
+                        for (l = extract_files; l != NULL; l = l->next) {
+                                file = NAUTILUS_FILE (l->data);
+                                g_autoptr (GFile) source;
+
+                                source = nautilus_file_get_location (file);
+
+                                nautilus_file_operations_extract (source,
+                                                                  output,
+                                                                  parameters->parent_window,
+                                                                  NULL,
+                                                                  NULL);
+                        }                        
+                }
+        }
 
 	open_in_app_parameters = NULL;
 	unhandled_open_in_app_uris = NULL;
@@ -2171,6 +2270,7 @@ activation_start_mountables (ActivateParameters *parameters)
 void
 nautilus_mime_activate_files (GtkWindow *parent_window,
 			      NautilusWindowSlot *slot,
+                              NautilusFile *parent_directory,
 			      GList *files,
 			      const char *launch_directory,
 			      NautilusWindowOpenFlags flags,
@@ -2196,6 +2296,9 @@ nautilus_mime_activate_files (GtkWindow *parent_window,
 		parameters->parent_window = parent_window;
 		g_object_add_weak_pointer (G_OBJECT (parameters->parent_window), (gpointer *)&parameters->parent_window);
 	}
+        if (parent_directory) {
+                parameters->parent_directory = nautilus_file_ref (parent_directory);
+        }
 	parameters->cancellable = g_cancellable_new ();
 	parameters->activation_directory = g_strdup (launch_directory);
 	parameters->locations = launch_locations_from_file_list (files);
@@ -2254,6 +2357,7 @@ nautilus_mime_activate_files (GtkWindow *parent_window,
 void
 nautilus_mime_activate_file (GtkWindow *parent_window,
 			     NautilusWindowSlot *slot,
+                             NautilusFile *parent_directory,
 			     NautilusFile *file,
 			     const char *launch_directory,
 			     NautilusWindowOpenFlags flags)
@@ -2263,7 +2367,13 @@ nautilus_mime_activate_file (GtkWindow *parent_window,
 	g_return_if_fail (NAUTILUS_IS_FILE (file));
 
 	files = g_list_prepend (NULL, file);
-	nautilus_mime_activate_files (parent_window, slot, files, launch_directory, flags, FALSE);
+	nautilus_mime_activate_files (parent_window,
+                                      slot,
+                                      parent_directory,
+                                      files,
+                                      launch_directory,
+                                      flags,
+                                      FALSE);
 	g_list_free (files);
 }
 
