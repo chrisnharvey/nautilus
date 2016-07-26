@@ -209,12 +209,14 @@ list_has_duplicates (NautilusBatchRename *dialog,
                      GList               *new_names,
                      GList               *selection,
                      GList               *parents_list,
-                     gboolean             same_parent)
+                     gboolean             same_parent,
+                     GCancellable        *cancellable)
 {
         GList *directory_files, *l1, *l2, *l3, *result;
         NautilusFile *file1, *file2;
-        GString *file_name1, *file_name2, *new_name;
+        GString *file_name1, *file_name2, *file_name3, *new_name;
         NautilusDirectory *parent;
+        gboolean is_renameable_desktop_file, have_conflict;
 
         result = NULL;
 
@@ -239,16 +241,33 @@ list_has_duplicates (NautilusBatchRename *dialog,
         l3 = selection;
 
         for (l1 = new_names; l1 != NULL; l1 = l1->next) {
+                if (g_cancellable_is_cancelled (cancellable)) {
+                        return NULL;
+                        g_list_free_full (result, g_free);
+                        break;
+                }
+
                 file1 = NAUTILUS_FILE (l3->data);
                 new_name = l1->data;
+                is_renameable_desktop_file = nautilus_file_is_mime_type (file1, "application/x-desktop");
+
+                have_conflict = FALSE;
+
+                if (!is_renameable_desktop_file && strstr (new_name->str, "/") != NULL) {
+                        result = g_list_prepend (result, strdup (new_name->str));
+
+                        continue;
+                }
+
 
                 g_string_erase (file_name1, 0, -1);
                 g_string_append (file_name1, nautilus_file_get_name (file1));
 
                 /* check for duplicate only if the name has changed */
                 if (!g_string_equal (new_name, file_name1)) {
+                        /* check with already existing files */
                         for (l2 = directory_files; l2 != NULL; l2 = l2->next) {
-                               file2 = NAUTILUS_FILE (l2->data);
+                                file2 = NAUTILUS_FILE (l2->data);
 
                                 g_string_erase (file_name2, 0, -1);
                                 g_string_append (file_name2, nautilus_file_get_name (file2));
@@ -256,12 +275,30 @@ list_has_duplicates (NautilusBatchRename *dialog,
                                 if (g_string_equal (new_name, file_name2) &&
                                     !file_name_changed (selection, new_names, new_name, NULL)) {
                                         result = g_list_prepend (result, strdup (new_name->str));
+                                        have_conflict = TRUE;
+
                                         break;
                                 }
                         }
+
+                        /* check with files that will result from the batch rename, unless
+                         * this file already has a conflict */
+                        if (!have_conflict)
+                                for (l2 = new_names; l2 != NULL; l2 = l2->next) {
+                                        file_name3 = l2->data;
+                                        if (l1 != l2 && g_string_equal (new_name, file_name3)) {
+                                                result = g_list_prepend (result, strdup (new_name->str));
+
+                                                break;
+                                        }
+                                }
                 }
 
                 l3 = l3->next;
+        }
+
+        if (g_cancellable_is_cancelled (cancellable)) {
+                return NULL;
         }
 
         g_string_free (file_name1, TRUE);

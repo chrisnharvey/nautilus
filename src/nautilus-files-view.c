@@ -3928,6 +3928,18 @@ files_changed_callback (NautilusDirectory *directory,
 }
 
 static void
+change_selection_callback (NautilusDirectory *directory,
+                           GList             *selection,
+                           gpointer           callback_data)
+{
+        NautilusFilesView *view;
+
+        view = NAUTILUS_FILES_VIEW (callback_data);
+
+        nautilus_view_set_selection (view, selection);
+}
+
+static void
 done_loading_callback (NautilusDirectory *directory,
                        gpointer           callback_data)
 {
@@ -3944,7 +3956,6 @@ done_loading_callback (NautilusDirectory *directory,
                  */
                 unschedule_display_of_pending_files (view);
                 schedule_timeout_display_of_pending_files (view, UPDATE_INTERVAL_MIN);
-
                 remove_loading_floating_bar (view);
         }
         nautilus_profile_end (NULL);
@@ -4000,6 +4011,9 @@ nautilus_files_view_add_subdirectory (NautilusFilesView *view,
         g_signal_connect
                 (directory, "files-changed",
                  G_CALLBACK (files_changed_callback), view);
+        g_signal_connect
+                (directory, "change-selection",
+                 G_CALLBACK (change_selection_callback), view);
 
         view->details->subdirectory_list = g_list_prepend (
                                                            view->details->subdirectory_list, directory);
@@ -7207,6 +7221,11 @@ finish_loading (NautilusFilesView *view)
         view->details->files_changed_handler_id = g_signal_connect
                 (view->details->model, "files-changed",
                  G_CALLBACK (files_changed_callback), view);
+
+        g_signal_connect (view->details->model,
+                          "change-selection",
+                          G_CALLBACK (change_selection_callback),
+                          view);
 
         nautilus_profile_end (NULL);
 }

@@ -44,6 +44,7 @@ enum {
 	FILES_CHANGED,
 	DONE_LOADING,
 	LOAD_ERROR,
+	CHANGE_SELECTION,
 	LAST_SIGNAL
 };
 
@@ -158,6 +159,15 @@ nautilus_directory_class_init (NautilusDirectoryClass *klass)
 				     "The location of this directory",
 				     G_TYPE_FILE,
 				     G_PARAM_CONSTRUCT_ONLY | G_PARAM_READWRITE);
+
+	signals[CHANGE_SELECTION] =
+		g_signal_new ("change-selection",
+		              G_TYPE_FROM_CLASS (object_class),
+		              G_SIGNAL_RUN_LAST,
+		              G_STRUCT_OFFSET (NautilusDirectoryClass, change_selection),
+		              NULL, NULL,
+		              g_cclosure_marshal_VOID__POINTER,
+		              G_TYPE_NONE, 1, G_TYPE_POINTER);
 
 	klass->get_file_list = real_get_file_list;
 	klass->is_editable = real_is_editable;
@@ -880,6 +890,19 @@ nautilus_directory_emit_files_changed (NautilusDirectory *directory,
 		g_signal_emit (directory,
 				 signals[FILES_CHANGED], 0,
 				 changed_files);
+	}
+	nautilus_profile_end (NULL);
+}
+
+void
+nautilus_directory_emit_change_selection (NautilusDirectory *directory,
+					  GList             *selection)
+{
+	nautilus_profile_start (NULL);
+	if (selection != NULL) {
+		g_signal_emit (directory,
+			       signals[CHANGE_SELECTION], 0,
+			       selection);
 	}
 	nautilus_profile_end (NULL);
 }

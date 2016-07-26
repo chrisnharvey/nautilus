@@ -15,7 +15,8 @@ GList* list_has_duplicates                      (NautilusBatchRename         *di
                                                  GList                       *names,
                                                  GList                       *selection,
                                                  GList                       *parents_list,
-                                                 gboolean                     same_parent);
+                                                 gboolean                     same_parent,
+                                                 GCancellable                *cancellable);
 
 GList* nautilus_batch_rename_sort               (GList                       *selection,
                                                  SortingMode                  mode,

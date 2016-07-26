@@ -103,6 +103,8 @@ typedef struct
 	void     (* load_error)          (NautilusDirectory         *directory,
 					  GError                    *error);
 
+	void     (* change_selection)       (NautilusDirectory         *directory,
+					     GList                     *selection);
 	/*** Virtual functions for subclasses to override. ***/
 	gboolean (* contains_file)       (NautilusDirectory         *directory,
 					  NautilusFile              *file);
