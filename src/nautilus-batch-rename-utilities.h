@@ -7,6 +7,8 @@
 
 GList* get_new_names_list                       (NautilusBatchRenameMode      mode,
                                                  GList                       *selection,
+                                                 GList                       *tags_list,
+                                                 GList                       *selection_metadata,
                                                  gchar                       *entry_text,
                                                  gchar                       *replace_text);
 
@@ -40,7 +42,7 @@ gint compare_files_by_first_created             (gconstpointer a,
 gint compare_files_by_last_created              (gconstpointer a,
                                                  gconstpointer b);
 
-void check_creation_date_for_selection          (NautilusBatchRename *dialog,
+void check_metadata_for_selection               (NautilusBatchRename *dialog,
                                                  GList               *selection);
 
 gboolean selection_has_single_parent            (GList *selection);

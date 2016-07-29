@@ -1703,6 +1703,8 @@ change_selection_callback (gpointer user_data)
         data = user_data;
         nautilus_directory_emit_change_selection (data->directory, data->files);
 
+        g_free (data);
+
         return FALSE;
 }
 

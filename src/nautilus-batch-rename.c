@@ -22,11 +22,13 @@
 #include "nautilus-batch-rename-utilities.h"
 
 #include <glib/gprintf.h>
+#include <glib.h>
 #include <string.h>
 
 #define ADD_TEXT_ENTRY_SIZE 550
 #define REPLACE_ENTRY_SIZE  275
 #define DIALOG_TITLE_LEN 25
+#define TAG_UNAVAILABLE -2
 
 struct _NautilusBatchRename
 {
@@ -46,6 +48,7 @@ struct _NautilusBatchRename
         GtkWidget               *add_button;
         GtkWidget               *add_popover;
         GtkWidget               *numbering_order_label;
+        GtkWidget               *numbering_label;
         GtkWidget               *scrolled_window;
         GtkWidget               *numbering_order_popover;
         GtkWidget               *numbering_order_button;
@@ -66,8 +69,10 @@ struct _NautilusBatchRename
         GActionGroup            *action_group;
 
         GMenu                   *numbering_order_menu;
+        GMenu                   *add_tag_menu;
 
         GHashTable              *create_date;
+        GList                   *selection_metadata;
 
         /* check if all files in selection have the same parent */
         gboolean                 same_parent;
@@ -85,6 +90,17 @@ struct _NautilusBatchRename
 
         GtkSizeGroup            *size_group1;
         GtkSizeGroup            *size_group2;
+
+        /* starting tag position, -1 if tag is missing and
+         * -2 if tag can't be added at all */
+        gint                     original_name_tag;
+        gint                     numbering_tag;
+        gint                     creation_date_tag;
+        gint                     equipment_tag;
+        gint                     season_tag;
+        gint                     episode_nr_tag;
+        gint                     track_nr_tag;
+        gint                     artist_name_tag;
 };
 
 static void     file_names_widget_entry_on_changed      (NautilusBatchRename    *dialog);
@@ -159,19 +175,319 @@ numbering_order_changed (GSimpleAction       *action,
         file_names_widget_entry_on_changed (dialog);
 }
 
+static void
+add_original_file_name_tag (GSimpleAction       *action,
+                            GVariant            *value,
+                            gpointer             user_data)
+{
+        NautilusBatchRename *dialog;
+        gint *cursor_pos;
+
+        dialog = NAUTILUS_BATCH_RENAME (user_data);
+        cursor_pos = g_malloc (sizeof (int));
+
+        g_object_get (dialog->name_entry, "cursor-position", cursor_pos, NULL);
+
+        gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                  "[Original file name]",
+                                  strlen ("[Original file name]"),
+                                  cursor_pos);
+        *cursor_pos += strlen ("[Original file name]");
+
+        gtk_entry_grab_focus_without_selecting (GTK_ENTRY (dialog->name_entry));
+
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
+
+        g_free (cursor_pos);
+}
+
+static void
+disable_action (NautilusBatchRename *dialog,
+                gchar               *action_name)
+{
+        GAction *action;
+
+        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                             action_name);
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
+}
+
+static void
+add_metadata_tag (GSimpleAction       *action,
+                  GVariant            *value,
+                  gpointer             user_data)
+{
+        NautilusBatchRename *dialog;
+        gchar *action_name;
+        gint *cursor_pos;
+
+        dialog = NAUTILUS_BATCH_RENAME (user_data);
+        action_name = g_malloc (strlen ("add-numbering-tag-zero"));
+        cursor_pos = g_malloc (sizeof (int));
+
+        g_object_get (action, "name", &action_name, NULL);
+        g_object_get (dialog->name_entry, "cursor-position", cursor_pos, NULL);
+
+        if (g_strrstr (action_name, "creation-date")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Date taken]",
+                                          strlen ("[Date taken]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-creation-date-tag");
+        }
+
+        if (g_strrstr (action_name, "equipment")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Camera model]",
+                                          strlen ("[Camera model]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-equipment-tag");
+        }
+
+        if (g_strrstr (action_name, "season")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Season nr]",
+                                          strlen ("[Season nr]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-season-tag");
+        }
+
+        if (g_strrstr (action_name, "episode")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Episode nr]",
+                                          strlen ("[Episode nr]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-episode-tag");
+        }
+
+        if (g_strrstr (action_name, "track")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Track nr]",
+                                          strlen ("[Track nr]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-track-number-tag");
+        }
+
+        if (g_strrstr (action_name, "artist")) {
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[Artist name]",
+                                          strlen ("[Artist name]"),
+                                          cursor_pos);
+                disable_action (dialog, "add-artist-name-tag");
+        }
+
+        gtk_entry_grab_focus_without_selecting (GTK_ENTRY (dialog->name_entry));
+
+        g_free (action_name);
+}
+
+static void
+add_numbering_tag (GSimpleAction       *action,
+                   GVariant            *value,
+                   gpointer             user_data)
+{
+        NautilusBatchRename *dialog;
+        gchar *action_name;
+        gint *cursor_pos;
+        GAction *add_numbering_action;
+
+        dialog = NAUTILUS_BATCH_RENAME (user_data);
+        action_name = g_malloc (strlen ("add-numbering-tag-zero"));
+        cursor_pos = g_malloc (sizeof (int));
+
+        g_object_get (action, "name", &action_name, NULL);
+        g_object_get (dialog->name_entry, "cursor-position", cursor_pos, NULL);
+
+        if (g_strrstr (action_name, "zero"))
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[1, 2, 3]",
+                                          strlen ("[1, 2, 3]"),
+                                          cursor_pos);
+
+        if (g_strrstr (action_name, "one"))
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[01, 02, 03]",
+                                          strlen ("[01, 02, 03]"),
+                                          cursor_pos);
+
+        if (g_strrstr (action_name, "two"))
+                gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
+                                          "[001, 002, 003]",
+                                          strlen ("[001, 002, 003]"),
+                                          cursor_pos);
+
+        add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                              "add-numbering-tag-zero");
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+        add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                              "add-numbering-tag-one");
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+
+        add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                              "add-numbering-tag-two");
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+
+        gtk_entry_grab_focus_without_selecting (GTK_ENTRY (dialog->name_entry));
+
+        g_free (action_name);
+}
+
 const GActionEntry dialog_entries[] = {
-        { "numbering-order-changed", NULL, "s", "'name-ascending'",  numbering_order_changed }
+        { "numbering-order-changed", NULL, "s", "'name-ascending'",  numbering_order_changed },
+        { "add-original-file-name-tag", add_original_file_name_tag },
+        { "add-numbering-tag-zero", add_numbering_tag },
+        { "add-numbering-tag-one", add_numbering_tag },
+        { "add-numbering-tag-two", add_numbering_tag },
+        { "add-creation-date-tag", add_metadata_tag },
+        { "add-equipment-tag", add_metadata_tag },
+        { "add-season-tag", add_metadata_tag },
+        { "add-episode-tag", add_metadata_tag },
+        { "add-video-album-tag", add_metadata_tag },
+        { "add-track-number-tag", add_metadata_tag },
+        { "add-artist-name-tag", add_metadata_tag },
+        { "add-album-title-tag", add_metadata_tag },
+
 };
+
+gint compare_int (gconstpointer a,
+                  gconstpointer b)
+{
+      return *(int*)a - *(int*)b;
+}
+
+static GList*
+split_entry_text (NautilusBatchRename *dialog,
+                  gchar               *entry_text)
+{
+        GString *string, *tag;
+        GArray *tag_positions;
+        gint tags, i, j;
+        GList *result = NULL;
+
+        tags = 0;
+        j = 0;
+        tag_positions = g_array_new (FALSE, FALSE, sizeof (gint));
+
+        if (dialog->numbering_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->numbering_tag);
+                tags++;
+        }
+
+        if (dialog->original_name_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->original_name_tag);
+                tags++;
+        }
+
+        if (dialog->creation_date_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->creation_date_tag);
+                tags++;
+        }
+
+        if (dialog->equipment_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->equipment_tag);
+                tags++;
+        }
+
+        if (dialog->season_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->season_tag);
+                tags++;
+        }
+
+        if (dialog->episode_nr_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->episode_nr_tag);
+                tags++;
+        }
+
+        if (dialog->track_nr_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->track_nr_tag);
+                tags++;
+        }
+
+        if (dialog->artist_name_tag >= 0) {
+                g_array_append_val (tag_positions, dialog->artist_name_tag);
+                tags++;
+        }
+
+        g_array_sort (tag_positions, compare_int);
+
+        for (i = 0; i < tags; i++) {
+                tag = g_string_new ("");
+
+                tag = g_string_append_len (tag,
+                                           entry_text + g_array_index (tag_positions, gint, i),
+                                           3);
+
+                string = g_string_new ("");
+
+                string = g_string_append_len (string,
+                                              entry_text + j,
+                                              g_array_index (tag_positions, gint, i) - j);
+
+                if (g_strcmp0 (string->str, ""))
+                        result = g_list_append (result, string);
+
+                if (g_strcmp0 (tag->str, "[Or") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Original file name]");
+                        tag = g_string_append (tag, "iginal file name]");
+                }
+                if (g_strcmp0 (tag->str, "[1,") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[1, 2, 3]");
+                        tag = g_string_append (tag, " 2, 3]");
+                }
+                if (g_strcmp0 (tag->str, "[01") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[01, 02, 03]");
+                        tag = g_string_append (tag, ", 02, 03]");
+                }
+                if (g_strcmp0 (tag->str, "[00") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[001, 002, 003]");
+                        tag = g_string_append (tag, "1, 002, 003]");
+                }
+                if (g_strcmp0 (tag->str, "[Da") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Date taken]");
+                        tag = g_string_append (tag, "te taken]");
+                }
+                if (g_strcmp0 (tag->str, "[Ca") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Camera model]");
+                        tag = g_string_append (tag, "mera model]");
+                }
+                if (g_strcmp0 (tag->str, "[Se") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Season nr]");
+                        tag = g_string_append (tag, "ason nr]");
+                }
+                if (g_strcmp0 (tag->str, "[Ep") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Episode nr]");
+                        tag = g_string_append (tag, "isode nr]");
+                }
+                if (g_strcmp0 (tag->str, "[Tr") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Track nr]");
+                        tag = g_string_append (tag, "ack nr]");
+                }
+                if (g_strcmp0 (tag->str, "[Ar") == 0) {
+                        j = g_array_index (tag_positions, gint, i) + strlen ("[Artist name]");
+                        tag = g_string_append (tag, "tist name]");
+                }
+                result = g_list_append (result, tag);
+        }
+        string = g_string_new ("");
+        string = g_string_append (string, entry_text + j);
+
+        if (g_strcmp0 (string->str, ""))
+                result = g_list_append (result, string);
+
+        g_array_free (tag_positions, TRUE);
+        return result;
+}
 
 static GList*
 batch_rename_get_new_names (NautilusBatchRename *dialog)
 {
         GList *result = NULL;
-        GList *selection;
+        GList *selection, *tags_list;
         g_autofree gchar *entry_text;
         g_autofree gchar *replace_text;
 
         selection = dialog->selection;
+        tags_list = NULL;
 
         if (dialog->mode == NAUTILUS_BATCH_RENAME_REPLACE)
                 entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
@@ -180,9 +496,29 @@ batch_rename_get_new_names (NautilusBatchRename *dialog)
 
         replace_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->replace_entry)));
 
-        result = get_new_names_list (dialog->mode, selection, entry_text, replace_text);
+        if (dialog->mode == NAUTILUS_BATCH_RENAME_REPLACE) {
+                result = get_new_names_list (dialog->mode,
+                                             selection,
+                                             NULL,
+                                             NULL,
+                                             entry_text,
+                                             replace_text);
+        } else {
+                /* get list of tags and regular text */
+                tags_list = split_entry_text (dialog, entry_text);
+
+                result = get_new_names_list (dialog->mode,
+                                             selection,
+                                             tags_list,
+                                             dialog->selection_metadata,
+                                             entry_text,
+                                             replace_text);
+        }
 
         result = g_list_reverse (result);
+
+        if (tags_list != NULL)
+                g_list_free_full (tags_list, string_free);
 
         return result;
 }
@@ -581,6 +917,139 @@ list_has_duplicates_async (NautilusBatchRename *dialog,
         g_object_unref (dialog->task);
 }
 
+static gint
+check_tag (NautilusBatchRename *dialog,
+           gchar               *tag_name,
+           gchar               *action_name,
+           gint                 old_position)
+{
+        GString *entry_text;
+        GAction *action;
+        gint position;
+
+        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+        position = old_position;
+
+        if (g_strrstr (entry_text->str, tag_name) && old_position == -1) {
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                     action_name);
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
+        }
+
+        if (g_strrstr (entry_text->str, tag_name) == NULL && old_position >= 0) {
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                     action_name);
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                position = -1;
+        }
+
+        if (g_strrstr (entry_text->str, tag_name)) {
+                position = g_strrstr (entry_text->str, tag_name) - entry_text->str;
+        }
+
+        g_string_free (entry_text, TRUE);
+
+        return position;
+}
+
+static void
+check_numbering_tags (NautilusBatchRename *dialog)
+{
+        GString *entry_text;
+        GAction *add_numbering_action;
+
+        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+
+        if ((g_strrstr (entry_text->str, "[1, 2, 3]") ||
+            g_strrstr (entry_text->str, "[01, 02, 03]") ||
+            g_strrstr (entry_text->str, "[001, 002, 003]")) &&
+            dialog->numbering_tag == -1) {
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-zero");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-one");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-two");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
+        }
+        if (g_strrstr (entry_text->str, "[1, 2, 3]") == NULL &&
+            g_strrstr (entry_text->str, "[01, 02, 03]") == NULL &&
+            g_strrstr (entry_text->str, "[001, 002, 003]") == NULL &&
+            dialog->numbering_tag >= 0) {
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-zero");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
+
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-one");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
+
+                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                      "add-numbering-tag-two");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
+
+                dialog->numbering_tag = -1;
+        }
+
+        if (g_strrstr (entry_text->str, "[1, 2, 3]")) {
+                dialog->numbering_tag = g_strrstr (entry_text->str, "[1, 2, 3]") - entry_text->str;
+        }
+
+        if (g_strrstr (entry_text->str, "[01, 02, 03]")) {
+                dialog->numbering_tag = g_strrstr (entry_text->str, "[01, 02, 03]") - entry_text->str;
+        }
+        if (g_strrstr (entry_text->str, "[001, 002, 003]")) {
+                dialog->numbering_tag = g_strrstr (entry_text->str, "[001, 002, 003]") - entry_text->str;
+        }
+        g_string_free (entry_text, TRUE);
+}
+
+static void
+update_tags (NautilusBatchRename *dialog)
+{
+        dialog->original_name_tag = check_tag (dialog,
+                                               "[Original file name]",
+                                               "add-original-file-name-tag",
+                                               dialog->original_name_tag);
+        if (dialog->creation_date_tag != TAG_UNAVAILABLE)
+                dialog->creation_date_tag = check_tag (dialog,
+                                                       "[Date taken]",
+                                                       "add-creation-date-tag",
+                                                       dialog->creation_date_tag);
+        if (dialog->equipment_tag != TAG_UNAVAILABLE)
+                dialog->equipment_tag = check_tag (dialog,
+                                                   "[Camera model]",
+                                                   "add-equipment-tag",
+                                                   dialog->equipment_tag);
+        if (dialog->season_tag != TAG_UNAVAILABLE)
+                dialog->season_tag = check_tag (dialog,
+                                                "[Season nr]",
+                                                "add-season-tag",
+                                                dialog->season_tag);
+        if (dialog->episode_nr_tag != TAG_UNAVAILABLE)
+                dialog->episode_nr_tag = check_tag (dialog,
+                                                    "[Episode nr]",
+                                                    "add-episode-tag",
+                                                    dialog->episode_nr_tag);
+        if (dialog->track_nr_tag != TAG_UNAVAILABLE)
+                dialog->track_nr_tag = check_tag (dialog,
+                                                  "[Track nr]",
+                                                  "add-track-number-tag",
+                                                  dialog->track_nr_tag);
+        if (dialog->artist_name_tag != TAG_UNAVAILABLE)
+                dialog->artist_name_tag = check_tag (dialog,
+                                                     "[Artist name]",
+                                                     "add-artist-name-tag",
+                                                     dialog->artist_name_tag);
+
+        check_numbering_tags (dialog);
+}
+
 static void
 file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 {
@@ -597,6 +1066,16 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 
         if (dialog->new_names != NULL)
                 g_list_free_full (dialog->new_names, string_free);
+
+        update_tags (dialog);
+
+        if (dialog->numbering_tag == -1) {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_label), "");
+                gtk_widget_hide (dialog->numbering_order_button);
+        } else {
+                gtk_label_set_label (GTK_LABEL (dialog->numbering_label), "Automatic Numbering Order");
+                gtk_widget_show (dialog->numbering_order_button);
+        }
 
         dialog->new_names = batch_rename_get_new_names (dialog);
         dialog->checked_parents = 0;
@@ -639,22 +1118,16 @@ batch_rename_mode_changed (NautilusBatchRename *dialog)
         if (gtk_toggle_button_get_active (GTK_TOGGLE_BUTTON (dialog->format_mode_button))) {
                 gtk_stack_set_visible_child_name (GTK_STACK (dialog->mode_stack), "format");
 
-                dialog->mode = NAUTILUS_BATCH_RENAME_PREPEND;
+                dialog->mode = NAUTILUS_BATCH_RENAME_FORMAT;
 
-                gtk_entry_set_text (GTK_ENTRY (dialog->name_entry),
-                                    gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
-
-                gtk_widget_grab_focus (dialog->name_entry);
+                gtk_entry_grab_focus_without_selecting (GTK_ENTRY (dialog->name_entry));
 
         } else {
                 gtk_stack_set_visible_child_name (GTK_STACK (dialog->mode_stack), "replace");
 
                 dialog->mode = NAUTILUS_BATCH_RENAME_REPLACE;
 
-                gtk_entry_set_text (GTK_ENTRY (dialog->find_entry),
-                                    gtk_entry_get_text ( GTK_ENTRY (dialog->name_entry)));
-
-                gtk_widget_grab_focus (dialog->find_entry);
+                gtk_entry_grab_focus_without_selecting (GTK_ENTRY (dialog->find_entry));
         }
 
         /* update display text */
@@ -694,10 +1167,11 @@ numbering_order_popover_closed (NautilusBatchRename *dialog)
 
 void
 query_finished (NautilusBatchRename *dialog,
-                GHashTable          *hash_table)
+                GHashTable          *hash_table,
+                GList               *selection_metadata)
 {
-        GMenuItem *first_created;
-        GMenuItem *last_created;
+        GMenuItem *first_created, *last_created;
+        FileMetadata *metadata;
 
         /* for files with no metadata */
         if (hash_table != NULL && g_hash_table_size (hash_table) == 0)
@@ -724,11 +1198,58 @@ query_finished (NautilusBatchRename *dialog,
                 g_menu_append_item (dialog->numbering_order_menu, last_created);
 
         }
+
+        dialog->selection_metadata = selection_metadata;
+        metadata = selection_metadata->data;
+
+        if (metadata->creation_date == NULL || g_strcmp0 (metadata->creation_date->str, "") == 0) {
+               disable_action (dialog, "add-creation-date-tag");
+               dialog->creation_date_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->creation_date_tag = -1;
+        }
+
+        if (metadata->equipment == NULL || g_strcmp0 (metadata->equipment->str, "") == 0) {
+               disable_action (dialog, "add-equipment-tag");
+               dialog->equipment_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->equipment_tag = -1;
+        }
+
+        if (metadata->season == NULL || g_strcmp0 (metadata->season->str, "") == 0) {
+               disable_action (dialog, "add-season-tag");
+               dialog->season_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->creation_date_tag = -1;
+        }
+
+        if (metadata->episode_nr == NULL || g_strcmp0 (metadata->episode_nr->str, "") == 0) {
+               disable_action (dialog, "add-episode-tag");
+               dialog->episode_nr_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->episode_nr_tag = -1;
+        }
+
+        if (metadata->track_nr == NULL || g_strcmp0 (metadata->track_nr->str, "") == 0) {
+               disable_action (dialog, "add-track-number-tag");
+               dialog->track_nr_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->track_nr_tag = -1;
+        }
+
+        if (metadata->artist_name == NULL || g_strcmp0 (metadata->artist_name->str, "") == 0) {
+               disable_action (dialog, "add-artist-name-tag");
+               dialog->artist_name_tag = TAG_UNAVAILABLE;
+        } else {
+                dialog->artist_name_tag = -1;
+        }
 }
 
 static void
 nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
 {
+        GAction *action;
+
         dialog->action_group = G_ACTION_GROUP (g_simple_action_group_new ());
 
         g_action_map_add_action_entries (G_ACTION_MAP (dialog->action_group),
@@ -739,15 +1260,41 @@ nautilus_batch_rename_initialize_actions (NautilusBatchRename *dialog)
                                         "dialog",
                                         G_ACTION_GROUP (dialog->action_group));
 
-        check_creation_date_for_selection (dialog, dialog->selection);
+        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                             "add-original-file-name-tag");
+        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
+
+        check_metadata_for_selection (dialog, dialog->selection);
 }
 
 static void
 nautilus_batch_rename_finalize (GObject *object)
 {
         NautilusBatchRename *dialog;
+        GList *l;
 
         dialog = NAUTILUS_BATCH_RENAME (object);
+
+        for (l = dialog->selection_metadata; l != NULL; l = l->next) {
+                FileMetadata *metadata;
+
+                metadata = l->data;
+
+                if (metadata->file_name != NULL)
+                        g_string_free (metadata->file_name, TRUE);
+                if (metadata->creation_date != NULL)
+                        g_string_free (metadata->creation_date, TRUE);
+                if (metadata->equipment != NULL)
+                        g_string_free (metadata->equipment, TRUE);
+                if (metadata->season != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->episode_nr != NULL)
+                        g_string_free (metadata->episode_nr, TRUE);
+                if (metadata->track_nr != NULL)
+                        g_string_free (metadata->track_nr, TRUE);
+                if (metadata->artist_name != NULL)
+                        g_string_free (metadata->artist_name, TRUE);
+        }
 
         if (dialog->create_date != NULL)
                 g_hash_table_destroy (dialog->create_date);
@@ -796,6 +1343,8 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, conflict_label);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, conflict_up);
         gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, conflict_down);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, add_tag_menu);
+        gtk_widget_class_bind_template_child (widget_class, NautilusBatchRename, numbering_label);
 
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_entry_on_changed);
         gtk_widget_class_bind_template_callback (widget_class, file_names_widget_on_activate);
@@ -861,10 +1410,13 @@ nautilus_batch_rename_init (NautilusBatchRename *self)
                                                     self,
                                                     NULL);
 
-        self->mode = NAUTILUS_BATCH_RENAME_PREPEND;
+        self->mode = NAUTILUS_BATCH_RENAME_FORMAT;
 
         gtk_popover_bind_model (GTK_POPOVER (self->numbering_order_popover),
                                 G_MENU_MODEL (self->numbering_order_menu),
+                                NULL);
+        gtk_popover_bind_model (GTK_POPOVER (self->add_popover),
+                                G_MENU_MODEL (self->add_tag_menu),
                                 NULL);
 
         gtk_label_set_ellipsize (GTK_LABEL (self->conflict_label), PANGO_ELLIPSIZE_END);
@@ -874,4 +1426,8 @@ nautilus_batch_rename_init (NautilusBatchRename *self)
         self->listbox_rows = NULL;
 
         self->checking_conflicts = FALSE;
+
+        self->original_name_tag = 0;
+        self->numbering_tag = -1;
+        gtk_entry_set_text (GTK_ENTRY (self->name_entry),"[Original file name]");
 }

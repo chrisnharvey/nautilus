@@ -25,6 +25,22 @@ typedef enum {
         LAST_CREATED = 5,
 } SortingMode;
 
+typedef struct {
+    GString *file_name;
+
+    /* Photo */
+    GString *creation_date;
+    GString *equipment;
+
+    /* Video */
+    GString *season;
+    GString *episode_nr;
+
+    /* Music */
+    GString *track_nr;
+    GString *artist_name;
+} FileMetadata;
+
 #define NAUTILUS_TYPE_BATCH_RENAME (nautilus_batch_rename_get_type())
 
 G_DECLARE_FINAL_TYPE (NautilusBatchRename, nautilus_batch_rename, NAUTILUS, BATCH_RENAME, GtkDialog);
@@ -34,11 +50,15 @@ GtkWidget*      nautilus_batch_rename_new       (GList                  *selecti
                                                  NautilusWindow         *window);
 
 void            query_finished                  (NautilusBatchRename    *dialog,
-                                                 GHashTable             *hash_table);
+                                                 GHashTable             *hash_table,
+                                                 GList                  *selection_metadata);
 
 void            check_conflict_for_file         (NautilusBatchRename    *dialog,
                                                  NautilusDirectory      *directory,
                                                  GList                  *files);
+
+gint            compare_int                     (gconstpointer a,
+                                                 gconstpointer b);
 
 G_END_DECLS
 
