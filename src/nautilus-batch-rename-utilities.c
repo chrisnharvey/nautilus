@@ -38,7 +38,8 @@ static void cursor_callback (GObject      *object,
 void
 string_free (gpointer mem)
 {
-        g_string_free (mem, TRUE);
+        if (mem != NULL)
+                g_string_free (mem, TRUE);
 }
 
 static GString*
@@ -142,13 +143,14 @@ batch_rename_format (NautilusFile *file,
         gboolean added_tag;
         gint start_offset, end_offset;
         g_autofree gchar *file_name, *extension;
-        gchar *metadata, **splitted_date;
+        gchar *metadata, **splitted_date, *name;
 
         file_name = nautilus_file_get_display_name (file);
         extension = nautilus_file_get_extension (file);
 
         eel_filename_get_rename_region (file_name,
                                         &start_offset, &end_offset);
+
         new_name = g_string_new ("");
 
         for (l = tags_list; l != NULL; l = l->next) {
@@ -156,10 +158,12 @@ batch_rename_format (NautilusFile *file,
                 added_tag = FALSE;
 
                 if (!added_tag && g_strcmp0 (tag->str, "[Original file name]") == 0) {
+                        name = nautilus_file_get_display_name (file);
                         new_name = g_string_append_len (new_name,
-                                                        nautilus_file_get_display_name (file),
+                                                        name,
                                                         end_offset);
                         added_tag = TRUE;
+                        g_free (name);
                 }
 
                 if (!added_tag && g_strcmp0 (tag->str, "[1, 2, 3]") == 0) {
@@ -243,6 +247,7 @@ batch_rename_format (NautilusFile *file,
                                 added_tag = TRUE;
                         }
                 }
+
                 if (!added_tag)
                         new_name = g_string_append (new_name, tag->str);
         }
@@ -268,6 +273,7 @@ get_new_names_list (NautilusBatchRenameMode      mode,
         GList *result;
         GString *file_name;
         NautilusFile *file;
+        gchar *name;
         gint count;
 
         result = NULL;
@@ -277,7 +283,8 @@ get_new_names_list (NautilusBatchRenameMode      mode,
         for (l = selection; l != NULL; l = l->next) {
                 file = NAUTILUS_FILE (l->data);
 
-                g_string_append (file_name ,nautilus_file_get_name (file));
+                name = nautilus_file_get_name (file);
+                g_string_append (file_name, name);
 
                 /* get the new name here and add it to the list*/
                 if (mode == NAUTILUS_BATCH_RENAME_FORMAT) {
@@ -290,9 +297,12 @@ get_new_names_list (NautilusBatchRenameMode      mode,
 
                 if (mode == NAUTILUS_BATCH_RENAME_REPLACE)
                         result = g_list_prepend (result,
-                                                 batch_rename_replace (file_name->str, entry_text, replace_text));
+                                                 batch_rename_replace (file_name->str,
+                                                                       entry_text,
+                                                                       replace_text));
                 
                 g_string_erase (file_name, 0, -1);
+                g_free (name);
         }
 
         g_string_free (file_name, TRUE);
@@ -338,6 +348,8 @@ file_name_changed (GList        *selection,
                 }
 
                 l2 = l2->next;
+
+                g_free (selection_parent_uri);
         }
 
         /* such a file doesn't exist so there actually is a conflict */
@@ -366,6 +378,7 @@ list_has_duplicates (NautilusBatchRename *dialog,
         GString *file_name1, *file_name2, *file_name3, *new_name;
         NautilusDirectory *parent;
         gboolean is_renameable_desktop_file, have_conflict;
+        gchar *name;
 
         result = NULL;
 
@@ -392,6 +405,7 @@ list_has_duplicates (NautilusBatchRename *dialog,
         for (l1 = new_names; l1 != NULL; l1 = l1->next) {
                 if (g_cancellable_is_cancelled (cancellable)) {
                         g_list_free_full (result, g_free);
+                        g_list_free_full (new_names, string_free);
                         break;
                 }
 
@@ -407,9 +421,11 @@ list_has_duplicates (NautilusBatchRename *dialog,
                         continue;
                 }
 
-
+                name = nautilus_file_get_name (file1);
                 g_string_erase (file_name1, 0, -1);
-                g_string_append (file_name1, nautilus_file_get_name (file1));
+                g_string_append (file_name1, name);
+
+                g_free (name);
 
                 /* check for duplicate only if the name has changed */
                 if (!g_string_equal (new_name, file_name1)) {
@@ -417,8 +433,10 @@ list_has_duplicates (NautilusBatchRename *dialog,
                         for (l2 = directory_files; l2 != NULL; l2 = l2->next) {
                                 file2 = NAUTILUS_FILE (l2->data);
 
+                                name = nautilus_file_get_name (file2);
                                 g_string_erase (file_name2, 0, -1);
-                                g_string_append (file_name2, nautilus_file_get_name (file2));
+                                g_string_append (file_name2, name);
+                                g_free (name);
 
                                 if (g_string_equal (new_name, file_name2) &&
                                     !file_name_changed (selection, new_names, new_name, NULL)) {
@@ -435,10 +453,6 @@ list_has_duplicates (NautilusBatchRename *dialog,
                                 for (l2 = new_names; l2 != NULL; l2 = l2->next) {
                                         file_name3 = l2->data;
 
-                                        /* thread was interrupted */
-                                        if (file_name3 == NULL)
-                                                break;
-
                                         if (l1 != l2 && g_string_equal (new_name, file_name3)) {
                                                 result = g_list_prepend (result, strdup (new_name->str));
 
@@ -450,12 +464,12 @@ list_has_duplicates (NautilusBatchRename *dialog,
                 l3 = l3->next;
         }
 
-        if (g_cancellable_is_cancelled (cancellable)) {
-                return NULL;
-        }
-
         g_string_free (file_name1, TRUE);
         g_string_free (file_name2, TRUE);
+        nautilus_file_list_free (directory_files);
+
+        if (!g_cancellable_is_cancelled (cancellable))
+                g_list_free_full (new_names, string_free);
 
         return g_list_reverse (result);
 }
@@ -554,6 +568,7 @@ nautilus_batch_rename_sort (GList       *selection,
         GList *l,*l2;
         NautilusFile *file;
         GList *createDate_list, *createDate_list_sorted;
+        gchar *name;
 
         if (mode == ORIGINAL_ASCENDING)
                 return g_list_sort (selection, compare_files_by_name_ascending);
@@ -579,8 +594,10 @@ nautilus_batch_rename_sort (GList       *selection,
 
                         file = NAUTILUS_FILE (l->data);
 
+                        name = nautilus_file_get_name (file);
                         elem->file = file;
-                        elem->position = (gint*) g_hash_table_lookup (hash_table, nautilus_file_get_name (file));
+                        elem->position = (gint*) g_hash_table_lookup (hash_table, name);
+                        g_free (name);
 
                         createDate_list = g_list_prepend (createDate_list, elem);
                 }
@@ -833,11 +850,11 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
                 if (l == selection)
                         g_string_append_printf (query,
                                                 "FILTER (nfo:fileName(?file) = '%s' ",
-                                                nautilus_file_get_name (file));
+                                                file_name);
                 else
                         g_string_append_printf (query,
                                                 "|| nfo:fileName(?file) = '%s' ",
-                                                nautilus_file_get_name (file));
+                                                file_name);
 
                 metadata = g_malloc (9 * sizeof (GString*));
                 metadata->file_name = g_string_new (file_name);
@@ -849,6 +866,8 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
                 metadata->artist_name = g_string_new ("");
 
                 selection_metadata = g_list_append (selection_metadata, metadata);
+
+                g_free (file_name);
         }
 
         g_string_append (query, ")} ORDER BY ASC(nie:contentCreated(?file))");

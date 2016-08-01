@@ -292,9 +292,26 @@
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
                     <child>
-                      <object class="GtkListBox" id="conflict_listbox">
+                      <object class="GtkBox" id="a_box">
                         <property name="visible">True</property>
-                        <property name="can_focus">False</property>
+                        <child>
+                          <object class="GtkListBox" id="left_listbox">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkListBox" id="middle_listbox">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkListBox" id="right_listbox">
+                            <property name="visible">True</property>
+                            <property name="can_focus">False</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
