@@ -11,6 +11,7 @@
 
 #define MAX_DISPLAY_LEN 40
 #define MAX_FILTER_LEN 500
+#define MAX_FILE_LEN 1000
 
 typedef struct {
         NautilusFile *file;
@@ -143,7 +144,7 @@ batch_rename_format (NautilusFile *file,
         gboolean added_tag;
         gint start_offset, end_offset;
         g_autofree gchar *file_name, *extension;
-        gchar *metadata, **splitted_date, *name;
+        gchar *metadata, **splitted_date, *name, *base_name;
 
         file_name = nautilus_file_get_display_name (file);
         extension = nautilus_file_get_extension (file);
@@ -159,11 +160,15 @@ batch_rename_format (NautilusFile *file,
 
                 if (!added_tag && g_strcmp0 (tag->str, "[Original file name]") == 0) {
                         name = nautilus_file_get_display_name (file);
-                        new_name = g_string_append_len (new_name,
-                                                        name,
-                                                        end_offset);
+
+                        base_name = g_malloc (MAX_FILE_LEN);
+                        g_utf8_strncpy (base_name, name, end_offset);
+
+                        new_name = g_string_append (new_name, name);
+
                         added_tag = TRUE;
                         g_free (name);
+                        g_free (base_name);
                 }
 
                 if (!added_tag && g_strcmp0 (tag->str, "[1, 2, 3]") == 0) {
@@ -470,6 +475,8 @@ list_has_duplicates (NautilusBatchRename *dialog,
 
         if (!g_cancellable_is_cancelled (cancellable))
                 g_list_free_full (new_names, string_free);
+        else
+                return NULL;
 
         return g_list_reverse (result);
 }

@@ -89,9 +89,12 @@ struct _NautilusBatchRename
         gint                     checked_parents;
         GList                   *duplicates;
         GList                   *distinct_parents;
-        GTask                   *task;
-        GCancellable            *cancellable;
+        GTask                   *conflict_task;
+        GTask                   *labels_task;
+        GCancellable            *labels_cancellable;
+        GCancellable            *conflict_cancellable;
         gboolean                 checking_conflicts;
+        gboolean                 updating_labels;
 
         /* starting tag position, -1 if tag is missing and
          * -2 if tag can't be added at all */
@@ -573,31 +576,10 @@ static void
 rename_files_on_names_accepted (NautilusBatchRename *dialog,
                                 GList               *new_names)
 {
-        GList *l;
-
         gtk_window_close (GTK_WINDOW (dialog));
 
         /* do the actual rename here */
         nautilus_file_batch_rename (dialog->selection, new_names, NULL, NULL);
-
-        /* clear rows from listbox */
-        if (dialog->listbox_rows_left != NULL)
-                for (l = dialog->listbox_rows_left; l != NULL; l = l->next)
-                        gtk_container_remove (GTK_CONTAINER (dialog->left_listbox),
-                                              GTK_WIDGET (l->data));
-        if (dialog->listbox_rows_middle != NULL)
-                for (l = dialog->listbox_rows_middle; l != NULL; l = l->next)
-                        gtk_container_remove (GTK_CONTAINER (dialog->middle_listbox),
-                                              GTK_WIDGET (l->data));
-
-        if (dialog->listbox_rows_right != NULL)
-                for (l = dialog->listbox_rows_right; l != NULL; l = l->next)
-                        gtk_container_remove (GTK_CONTAINER (dialog->right_listbox),
-                                              GTK_WIDGET (l->data));
-
-        g_list_free (dialog->listbox_rows_left);
-        g_list_free (dialog->listbox_rows_middle);
-        g_list_free (dialog->listbox_rows_right);
 }
 
 static void
@@ -865,6 +847,75 @@ move_next_conflict_up (NautilusBatchRename *dialog)
 }
 
 static void
+update_labels_async_thread (GTask        *task,
+                            gpointer      object,
+                            gpointer      task_data,
+                            GCancellable *cancellable)
+{
+        NautilusBatchRename *dialog;
+        NautilusFile *file;
+        GList *l1, *l2, *new_names;
+        GtkLabel *label;
+        GString *new_name;
+        gchar *old_name;
+
+        dialog = NAUTILUS_BATCH_RENAME (object);
+
+        new_names = batch_rename_get_new_names (dialog);
+
+        /* Update labels in the listbox */
+        for (l1 = new_names, l2 = dialog->listbox_labels_new; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                if (g_cancellable_is_cancelled (cancellable))
+                        break;
+
+                label = GTK_LABEL (l2->data);
+                new_name = l1->data;
+
+                gtk_label_set_text (label, new_name->str);
+        }
+
+        for (l1 = dialog->selection, l2 = dialog->listbox_labels_old; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                if (g_cancellable_is_cancelled (cancellable))
+                        break;
+
+                label = GTK_LABEL (l2->data);
+                file = NAUTILUS_FILE (l1->data);
+
+                old_name = nautilus_file_get_name (file);
+
+                gtk_label_set_text (label, old_name);
+
+                g_free (old_name);
+        }
+
+        g_list_free_full (new_names, string_free);
+
+        dialog->updating_labels = FALSE;
+
+        g_task_return_pointer (task, object, NULL);
+}
+
+static void
+update_labels_async (NautilusBatchRename *dialog,
+                     gint                 io_priority,
+                     GAsyncReadyCallback  callback,
+                     gpointer             user_data)
+{
+        if (dialog->updating_labels)
+               g_cancellable_cancel (dialog->labels_cancellable);
+
+        dialog->labels_cancellable = g_cancellable_new ();
+
+        dialog->updating_labels = TRUE;
+        dialog->labels_task = g_task_new (dialog, dialog->labels_cancellable, callback, user_data);
+
+        g_task_set_priority (dialog->labels_task, io_priority);
+        g_task_run_in_thread (dialog->labels_task, update_labels_async_thread);
+
+        g_object_unref (dialog->labels_task);
+}
+
+static void
 update_listbox (NautilusBatchRename *dialog)
 {
         GList *l1, *l2;
@@ -873,7 +924,6 @@ update_listbox (NautilusBatchRename *dialog)
         GtkLabel *label;
         GString *new_name;
 
-        /* Update listbox that shows the result of the renaming for each file */
         for (l1 = dialog->new_names, l2 = dialog->listbox_labels_new; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
                 label = GTK_LABEL (l2->data);
                 new_name = l1->data;
@@ -988,8 +1038,6 @@ list_has_duplicates_callback (GObject *object,
 
         dialog = NAUTILUS_BATCH_RENAME (object);
 
-        dialog->checking_conflicts = FALSE;
-
         update_listbox (dialog);
 }
 
@@ -1017,6 +1065,8 @@ list_has_duplicates_async_thread (GTask        *task,
                                                   dialog->same_parent,
                                                   cancellable);
 
+        dialog->checking_conflicts = FALSE;
+
         g_task_return_pointer (task, object, NULL);
 
 }
@@ -1028,17 +1078,17 @@ list_has_duplicates_async (NautilusBatchRename *dialog,
                            gpointer             user_data)
 {
         if (dialog->checking_conflicts == TRUE)
-                g_cancellable_cancel (dialog->cancellable);
+                g_cancellable_cancel (dialog->conflict_cancellable);
 
-        dialog->cancellable = g_cancellable_new ();
+        dialog->conflict_cancellable = g_cancellable_new ();
 
         dialog->checking_conflicts = TRUE;
-        dialog->task = g_task_new (dialog, dialog->cancellable, callback, user_data);
+        dialog->conflict_task = g_task_new (dialog, dialog->conflict_cancellable, callback, user_data);
 
-        g_task_set_priority (dialog->task, io_priority);
-        g_task_run_in_thread (dialog->task, list_has_duplicates_async_thread);
+        g_task_set_priority (dialog->conflict_task, io_priority);
+        g_task_run_in_thread (dialog->conflict_task, list_has_duplicates_async_thread);
 
-        g_object_unref (dialog->task);
+        g_object_unref (dialog->conflict_task);
 }
 
 static gint
@@ -1194,7 +1244,7 @@ tag_removed (NautilusBatchRename *dialog,
 
         /* if only a paranthesis was deleted, then remove the rest of the tag */
         if ((g_strrstr (entry_text->str, tag_name + 1) || g_strrstr (entry_text->str, tag_part->str)) &&
-            g_strrstr (entry_text->str, tag_name) == NULL) {
+            g_strrstr (entry_text->str, tag_name) == NULL && old_position != -1) {
                 new_entry_text = g_string_new ("");
                 new_entry_text = g_string_append_len (new_entry_text,
                                                       entry_text->str,
@@ -1217,41 +1267,61 @@ tag_removed (NautilusBatchRename *dialog,
 static gboolean
 tags_removed (NautilusBatchRename *dialog)
 {
-        if (tag_removed (dialog, "[Original file name]", dialog->original_name_tag))
+        if (tag_removed (dialog, "[Original file name]", dialog->original_name_tag)) {
+                dialog->original_name_tag = -1;
                 return TRUE;
+        }
 
-        if (tag_removed (dialog, "[1, 2, 3]", dialog->numbering_tag))
+        if (tag_removed (dialog, "[1, 2, 3]", dialog->numbering_tag)) {
+                dialog->numbering_tag = -1;
                 return TRUE;
+        }
 
-        if (tag_removed (dialog, "[01, 02, 03]", dialog->numbering_tag))
+        if (tag_removed (dialog, "[01, 02, 03]", dialog->numbering_tag)) {
+                dialog->numbering_tag = -1;
                 return TRUE;
+        }
 
-        if (tag_removed (dialog, "[001, 002, 003]", dialog->numbering_tag))
+        if (tag_removed (dialog, "[001, 002, 003]", dialog->numbering_tag)) {
+                dialog->numbering_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->creation_date_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Date taken]", dialog->creation_date_tag))
+            tag_removed (dialog, "[Date taken]", dialog->creation_date_tag)) {
+                dialog->creation_date_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->equipment_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Camera model]", dialog->equipment_tag))
+            tag_removed (dialog, "[Camera model]", dialog->equipment_tag)) {
+                dialog->equipment_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->season_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Season nr]", dialog->season_tag))
+            tag_removed (dialog, "[Season nr]", dialog->season_tag)) {
+                dialog->season_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->episode_nr_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Episode nr]", dialog->episode_nr_tag))
+            tag_removed (dialog, "[Episode nr]", dialog->episode_nr_tag)) {
+                dialog->episode_nr_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->track_nr_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Track nr]", dialog->track_nr_tag))
+            tag_removed (dialog, "[Track nr]", dialog->track_nr_tag)) {
+                dialog->track_nr_tag = -1;
                 return TRUE;
+        }
 
         if (dialog->artist_name_tag != TAG_UNAVAILABLE &&
-            tag_removed (dialog, "[Artist name]", dialog->artist_name_tag))
+            tag_removed (dialog, "[Artist name]", dialog->artist_name_tag)) {
+                dialog->artist_name_tag = -1;
                 return TRUE;
+        }
 
         return FALSE;
 }
@@ -1259,8 +1329,11 @@ tags_removed (NautilusBatchRename *dialog)
 static void
 file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 {
-        if (dialog->cancellable != NULL)
-                g_cancellable_cancel (dialog->cancellable);
+        if (dialog->conflict_cancellable != NULL)
+                g_cancellable_cancel (dialog->conflict_cancellable);
+
+        if (dialog->updating_labels)
+                g_cancellable_cancel (dialog->labels_cancellable);
 
         if(dialog->selection == NULL)
                 return;
@@ -1290,6 +1363,11 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
 
         dialog->new_names = batch_rename_get_new_names (dialog);
         dialog->checked_parents = 0;
+
+        /*update_labels_async (dialog,
+                             G_PRIORITY_DEFAULT,
+                             NULL,
+                             NULL);*/
 
         list_has_duplicates_async (dialog,
                                    G_PRIORITY_DEFAULT,
@@ -1563,11 +1641,21 @@ nautilus_batch_rename_finalize (GObject *object)
 
         dialog = NAUTILUS_BATCH_RENAME (object);
 
-        if (dialog->checking_conflicts == TRUE) {
-                g_cancellable_cancel (dialog->cancellable);
-
-                g_object_unref (dialog->task);
+        if (dialog->checking_conflicts) {
+                g_cancellable_cancel (dialog->conflict_cancellable);
+                g_object_unref (dialog->conflict_task);
         }
+
+        if (dialog->updating_labels) {
+                g_cancellable_cancel (dialog->labels_cancellable);
+                g_object_unref (dialog->labels_task);
+        }
+
+        g_list_free (dialog->listbox_rows_left);
+        g_list_free (dialog->listbox_rows_middle);
+        g_list_free (dialog->listbox_rows_right);
+        g_list_free (dialog->listbox_labels_new);
+        g_list_free (dialog->listbox_labels_old);
 
         for (l = dialog->selection_metadata; l != NULL; l = l->next) {
                 FileMetadata *metadata;
