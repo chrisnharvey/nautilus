@@ -60,7 +60,7 @@ batch_rename_replace (gchar *string,
                 return new_string;
         }
 
-        if (strcmp (substr, "") == 0) {
+        if (g_strcmp0 (substr, "") == 0) {
                 g_string_append (new_string, string);
 
                 return new_string;
@@ -76,10 +76,91 @@ batch_rename_replace (gchar *string,
         n_splits = g_strv_length (splitted_string);
 
         for (i = 0; i < n_splits; i++) {
-            g_string_append (new_string, splitted_string[i]);
+                g_string_append (new_string, splitted_string[i]);
 
-            if (i != n_splits - 1)
-                g_string_append (new_string, replacement);
+                if (i != n_splits - 1)
+                        g_string_append (new_string, replacement);
+        }
+
+        g_strfreev (splitted_string);
+
+        return new_string;
+}
+
+static GString*
+escape_ampersand (const gchar *string)
+{
+        GString *new_string;
+        gchar **splitted_string;
+        gint i, n_splits;
+
+        new_string = g_string_new ("");
+
+        splitted_string = g_strsplit (string, "&", -1);
+        if (splitted_string == NULL) {
+                new_string = g_string_append (new_string, string);
+
+                return new_string;
+        }
+
+        n_splits = g_strv_length (splitted_string);
+
+        for (i = 0; i < n_splits; i++) {
+                new_string = g_string_append (new_string, splitted_string[i]);
+
+                if (i != n_splits - 1)
+                        new_string = g_string_append (new_string,"&amp;");
+        }
+
+        g_strfreev (splitted_string);
+
+        return new_string;
+}
+
+
+GString*
+batch_rename_replace_label_text (gchar       *string,
+                                 const gchar *substr)
+{
+        GString *new_string, *token;
+        gchar **splitted_string;
+        gint i, n_splits;
+
+        new_string = g_string_new ("");
+
+        if (substr == NULL || g_strcmp0 (substr, "") == 0) {
+                token = escape_ampersand (string);
+                new_string = g_string_append (new_string, token->str);
+                g_string_free (token, TRUE);
+
+                return new_string;
+        }
+
+        splitted_string = g_strsplit (string, substr, -1);
+        if (splitted_string == NULL) {
+                token = escape_ampersand (string);
+                new_string = g_string_append (new_string, token->str);
+                g_string_free (token, TRUE);
+
+                return new_string;
+        }
+
+        n_splits = g_strv_length (splitted_string);
+
+        for (i = 0; i < n_splits; i++) {
+                token = escape_ampersand (splitted_string[i]);
+                new_string = g_string_append (new_string, token->str);
+
+                g_string_free (token, TRUE);
+
+                if (i != n_splits - 1) {
+                        token = escape_ampersand (substr);
+                        g_string_append_printf (new_string,
+                                                "<span background=\'#FF8C00\'>%s</span>",
+                                                token->str);
+
+                        g_string_free (token, TRUE);
+                }
         }
 
         g_strfreev (splitted_string);
@@ -164,7 +245,7 @@ batch_rename_format (NautilusFile *file,
                         base_name = g_malloc (MAX_FILE_LEN);
                         g_utf8_strncpy (base_name, name, end_offset);
 
-                        new_name = g_string_append (new_name, name);
+                        new_name = g_string_append (new_name, base_name);
 
                         added_tag = TRUE;
                         g_free (name);

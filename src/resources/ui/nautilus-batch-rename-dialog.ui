@@ -5,6 +5,7 @@
     <property name="modal">True</property>
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
+    <signal name="response" handler="batch_rename_dialog_on_response"/>
     <child type="action">
       <object class="GtkButton" id="cancel_button">
         <property name="label" translatable="yes">_Cancel</property>
@@ -19,7 +20,6 @@
         <property name="visible">True</property>
         <property name="use_underline">True</property>
         <property name="can_default">True</property>
-        <signal name="clicked" handler="file_names_widget_on_activate" swapped="yes" />
         <style>
           <class name="suggested-action"/>
         </style>
@@ -327,13 +327,14 @@
               <object class="GtkBox" id="conflict_box">
                 <property name="orientation">horizontal</property>
                 <property name="spacing">6</property>
-                <property name="visible">True</property>
+                <property name="visible">False</property>
                 <property name="margin-left">6</property>
                 <child>
                   <object class="GtkLabel" id="conflict_label">
                     <property name="visible">True</property>
                     <property name="can_focus">False</property>
-                    <property name="hexpand">False</property>
+                    <property name="hexpand">True</property>
+                    <property name="xalign">0</property>
                   </object>
                   <packing>
                     <property name="pack-type">start</property>

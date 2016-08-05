@@ -1690,23 +1690,6 @@ nautilus_file_operation_free (NautilusFileOperation *op)
 
 	g_free (op);
 }
-typedef struct {
-        NautilusDirectory *directory;
-        GList *files;
-} SelectionData;
-
-static gboolean
-change_selection_callback (gpointer user_data)
-{
-        SelectionData *data;
-
-        data = user_data;
-        nautilus_directory_emit_change_selection (data->directory, data->files);
-
-        g_free (data);
-
-        return FALSE;
-}
 
 void
 nautilus_file_operation_complete (NautilusFileOperation *op,
@@ -1717,19 +1700,10 @@ nautilus_file_operation_complete (NautilusFileOperation *op,
 	 * This makes it easier for some clients who see the "reverting"
 	 * as "changing back".
 	 */
-        SelectionData *data;
-
 	nautilus_file_operation_remove (op);
 
-        if (g_list_length (op->files) == 0) {
+        if (g_list_length (op->files) == 0)
                 nautilus_file_changed (op->file);
-        } else {
-                data = g_malloc (sizeof (SelectionData*));
-                data->directory = op->file->details->directory;
-                data->files = op->files;
-
-                g_idle_add (change_selection_callback, data);
-        }
 
 	if (op->callback) {
 		(* op->callback) (op->file, result_file, error, op->callback_data);
@@ -1803,6 +1777,75 @@ rename_get_info_callback (GObject *source_object,
 		
 		g_object_unref (new_info);
 	}
+	nautilus_file_operation_complete (op, NULL, error);
+	if (error) {
+		g_error_free (error);
+	}
+}
+
+typedef struct {
+        NautilusFileOperation *op;
+        NautilusFile *file;
+} BatchRenameData;
+
+static void
+batch_rename_get_info_callback (GObject      *source_object,
+                                GAsyncResult *res,
+                                gpointer      callback_data)
+{
+        NautilusFileOperation *op;
+        NautilusDirectory *directory;
+        NautilusFile *existing_file;
+        char *old_uri;
+        char *new_uri;
+        const char *new_name;
+        GFileInfo *new_info;
+        GError *error;
+        BatchRenameData *data;
+
+        data = callback_data;
+
+        op = data->op;
+        op->file = data->file;
+
+        error = NULL;
+        new_info = g_file_query_info_finish (G_FILE (source_object), res, &error);
+        if (new_info != NULL) {
+                old_uri = nautilus_file_get_uri (op->file);
+
+                new_name = g_file_info_get_name (new_info);
+
+                directory = op->file->details->directory;
+
+                /* If there was another file by the same name in this
+                 * directory and it is not the same file that we are
+                 * renaming, mark it gone.
+                 */
+                existing_file = nautilus_directory_find_file_by_name (directory, new_name);
+                if (existing_file != NULL && existing_file != op->file) {
+                        nautilus_file_mark_gone (existing_file);
+                        nautilus_file_changed (existing_file);
+                }
+
+                update_info_and_name (op->file, new_info);
+
+                new_uri = nautilus_file_get_uri (op->file);
+                nautilus_directory_moved (old_uri, new_uri);
+                g_free (new_uri);
+                g_free (old_uri);
+
+                /* the rename could have affected the display name if e.g.
+                 * we're in a vfolder where the name comes from a desktop file
+                 * and a rename affects the contents of the desktop file.
+                 */
+                if (op->file->details->got_custom_display_name) {
+                        nautilus_file_invalidate_attributes (op->file,
+                                                             NAUTILUS_FILE_ATTRIBUTE_INFO |
+                                                             NAUTILUS_FILE_ATTRIBUTE_LINK_INFO);
+                }
+
+                g_object_unref (new_info);
+        }
 
         op->renamed_files++;
 
@@ -1813,9 +1856,11 @@ rename_get_info_callback (GObject *source_object,
         if (g_list_length (op->files) == 0)
                 nautilus_file_operation_complete (op, NULL, error);
 
-	if (error) {
-		g_error_free (error);
-	}
+        g_free (data);
+
+        if (error) {
+                g_error_free (error);
+        }
 }
 
 static void
@@ -1885,6 +1930,7 @@ real_batch_rename (GList                         *files,
         GFile *new_file;
         gboolean is_renameable_desktop_file, success, name_changed;
         gchar *uri, *desktop_name, *old_name;
+        BatchRenameData *data;
 
         error = NULL;
         old_files = NULL;
@@ -2003,16 +2049,19 @@ real_batch_rename (GList                         *files,
                                                     op->cancellable,
                                                     &error);
 
+                data = g_new0 (BatchRenameData, 1);
+                data->op = op;
+                data->file = file;
+
                 new_files = g_list_append (new_files, new_file);
 
-                op->file = file;
                 g_file_query_info_async (new_file,
                                          NAUTILUS_FILE_DEFAULT_ATTRIBUTES,
                                          0,
                                          G_PRIORITY_DEFAULT,
                                          op->cancellable,
-                                         rename_get_info_callback,
-                                         op);
+                                         batch_rename_get_info_callback,
+                                         data);
 
                 if (error != NULL) {
                         g_error_free (error);

@@ -56,4 +56,7 @@ gboolean file_name_changed                      (GList        *selection,
                                                  GString      *old_name,
                                                  gchar        *parent_uri);
 
+GString* batch_rename_replace_label_text        (gchar             *string,
+                                                 const gchar       *substr);
+
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */
