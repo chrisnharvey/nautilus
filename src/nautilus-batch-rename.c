@@ -944,6 +944,93 @@ move_next_conflict_up (NautilusBatchRename *dialog)
 }
 
 static void
+add_conflict_rows_background (NautilusBatchRename *dialog)
+{
+        GList *l, *l1, *l2;
+        GtkStyleContext *context;
+        gint i, nth_conflict, n;
+        NautilusFile *file;
+        GString *new_name, *file_name;
+        gchar *name;
+
+        for (i = 0; i < g_list_length (dialog->duplicates); i++) {
+                nth_conflict = i;
+
+                l1 = g_list_nth (dialog->duplicates, i);
+                file_name = g_string_new (l1->data);
+
+                /* the index of the nth conflict in the listbox */
+                n = 0;
+
+                l2 = dialog->selection;
+
+                for (l = dialog->new_names; l != NULL; l = l->next) {
+                        file = NAUTILUS_FILE (l2->data);
+
+                        new_name = l->data;
+                        name = nautilus_file_get_name (file);
+                        /* g_strcmp0 is used for not selecting a file that doesn't change
+                         * it's name */
+                        if (g_strcmp0 (new_name->str, name) &&
+                            g_string_equal (file_name, new_name) &&
+                            nth_conflict == 0)
+                                break;
+
+                        /* a file can only have a conflict if it's name has changed */
+                        if (g_strcmp0 (new_name->str, name) &&
+                            file_has_conflict (dialog, new_name))
+                                nth_conflict--;
+
+                        n++;
+                        l2 = l2->next;
+
+                        g_free (name);
+                }
+
+                l = g_list_nth (dialog->listbox_rows_left, n);
+                context = gtk_widget_get_style_context (GTK_WIDGET (l->data));
+                gtk_style_context_add_class (context, "conflict-row");
+
+                l = g_list_nth (dialog->listbox_rows_middle, n);
+                context = gtk_widget_get_style_context (GTK_WIDGET (l->data));
+                gtk_style_context_add_class (context, "conflict-row");
+
+                l = g_list_nth (dialog->listbox_rows_right, n);
+                context = gtk_widget_get_style_context (GTK_WIDGET (l->data));
+                gtk_style_context_add_class (context, "conflict-row");
+
+                g_string_free (file_name, TRUE);
+        }
+}
+
+static void
+remove_conflict_row_background (NautilusBatchRename *dialog)
+{
+        gint pos;
+        GList *l, *l2;
+        GtkStyleContext *context;
+
+        for (l = dialog->listbox_rows_left; l != NULL; l = l->next) {
+                context = gtk_widget_get_style_context (GTK_WIDGET (l->data));
+
+                if (gtk_style_context_has_class (context, "conflict-row")) {
+                        gtk_style_context_remove_class (context, "conflict-row");
+
+                        pos = g_list_position (dialog->listbox_rows_left, l);
+
+                        l2 = g_list_nth (dialog->listbox_rows_middle, pos);
+                        context = gtk_widget_get_style_context (GTK_WIDGET (l2->data));
+                        gtk_style_context_remove_class (context, "conflict-row");
+
+                        l2 = g_list_nth (dialog->listbox_rows_right, pos);
+                        context = gtk_widget_get_style_context (GTK_WIDGET (l2->data));
+                        gtk_style_context_remove_class (context, "conflict-row");
+
+                }
+        }
+}
+
+static void
 update_listbox (NautilusBatchRename *dialog)
 {
         GList *l1, *l2;
@@ -989,6 +1076,8 @@ update_listbox (NautilusBatchRename *dialog)
                 dialog->selected_conflict = 0;
                 dialog->conflicts_number = g_list_length (dialog->duplicates);
 
+                add_conflict_rows_background (dialog);
+
                 select_nth_conflict (dialog);
 
                 gtk_widget_set_sensitive (dialog->conflict_up, FALSE);
@@ -1001,8 +1090,10 @@ update_listbox (NautilusBatchRename *dialog)
                 gtk_widget_hide (dialog->conflict_box);
 
                 /* re-enable the rename button if there are no more name conflicts */
-                if (dialog->duplicates == NULL && !gtk_widget_is_sensitive (dialog->rename_button))
+                if (dialog->duplicates == NULL && !gtk_widget_is_sensitive (dialog->rename_button)) {
+                        remove_conflict_row_background (dialog);
                         gtk_widget_set_sensitive (dialog->rename_button, TRUE);
+                }
         }
 
         /* if the rename button was clicked and there's no conflict, then start renaming */
