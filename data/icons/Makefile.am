@@ -7,8 +7,6 @@ nobase_icon_DATA = \
 	$(srcdir)/hicolor/48x48/apps/org.gnome.Nautilus.png \
 	$(srcdir)/hicolor/symbolic/apps/org.gnome.Nautilus-symbolic.svg
 
-icon_files = $(nobase_icon_DATA)
-
 gtk_update_icon_cache = gtk-update-icon-cache -f -t $(datadir)/icons/hicolor
 
 install-data-hook: update-icon-cache
@@ -22,4 +20,4 @@ update-icon-cache:
 		echo "***   $(gtk_update_icon_cache)"; \
 	fi
 
-EXTRA_DIST = $(icon_files)
+EXTRA_DIST = $(nobase_icon_DATA)
