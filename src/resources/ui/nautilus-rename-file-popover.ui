@@ -48,9 +48,14 @@
           </packing>
         </child>
         <child>
-          <object class="GtkLabel" id="error_label">
+          <object class="GtkRevealer" id="error_revealer">
             <property name="visible">True</property>
-            <property name="halign">start</property>
+            <child>
+              <object class="GtkLabel" id="error_label">
+                <property name="visible">True</property>
+                <property name="xalign">0</property>
+              </object>
+            </child>
           </object>
           <packing>
             <property name="left-attach">0</property>
