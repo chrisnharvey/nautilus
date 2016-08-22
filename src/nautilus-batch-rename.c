@@ -969,7 +969,6 @@ fill_display_listbox (NautilusBatchRename *dialog)
 
                 row = create_result_row_for_label (dialog, new_name->str, TRUE);
                 gtk_container_add (GTK_CONTAINER (dialog->result_listbox), row);
-                clock_t end3 = clock();
                 dialog->result_listbox_rows = g_list_prepend (dialog->result_listbox_rows,
                                                               row);
 
@@ -1551,7 +1550,7 @@ check_if_tag_is_used (NautilusBatchRename *dialog,
                 g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
         }
 
-        if (g_strrstr (entry_text->str, tag_name) == NULL && tag_data->set) {
+        if (g_strrstr (entry_text->str, tag_name) == NULL) {
                 action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
                                                      action_name);
                 g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
@@ -1692,125 +1691,6 @@ update_tags (NautilusBatchRename *dialog)
 }
 
 static gboolean
-tag_removed (NautilusBatchRename *dialog,
-             gchar               *tag_name)
-{
-        GString *entry_text;
-        GString *tag_part;
-        GString *new_entry_text;
-        gboolean tag_was_removed;
-        TagData *tag_data;
-
-        tag_was_removed = FALSE;
-
-        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, tag_name);
-
-        /* tag without the last paranthesis */
-        tag_part = g_string_new ("");
-        tag_part = g_string_append_len (tag_part,
-                                        tag_name,
-                                        strlen (tag_name) - 1);
-
-        /* if only a paranthesis was deleted, then remove the rest of the tag */
-        if ((g_strrstr (entry_text->str, tag_name + 1) || g_strrstr (entry_text->str, tag_part->str)) &&
-            g_strrstr (entry_text->str, tag_name) == NULL && tag_data->set) {
-                new_entry_text = g_string_new ("");
-                new_entry_text = g_string_append_len (new_entry_text,
-                                                      entry_text->str,
-                                                      tag_data->position);
-                new_entry_text = g_string_append (new_entry_text,
-                                                  entry_text->str + tag_data->position + strlen (tag_part->str));
-
-                gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
-                gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), tag_data->position);
-
-                g_string_free (new_entry_text, TRUE);
-                tag_was_removed = TRUE;
-        }
-
-        g_string_free (entry_text, TRUE);
-        g_string_free (tag_part, TRUE);
-
-        return tag_was_removed;
-}
-
-static gboolean
-tags_removed (NautilusBatchRename *dialog)
-{
-        TagData *tag_data;
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, ORIGINAL_FILE_NAME);
-        if (tag_removed (dialog, ORIGINAL_FILE_NAME)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
-        if (tag_removed (dialog, NUMBERING)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
-        if (tag_removed (dialog, NUMBERING0)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING00);
-        if (tag_removed (dialog, NUMBERING00)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, CREATION_DATE);
-        if (tag_data->available && tag_removed (dialog, CREATION_DATE)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, CAMERA_MODEL);
-        if (tag_data->available && tag_removed (dialog, CAMERA_MODEL)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, SEASON_NUMBER);
-        if (tag_data->available && tag_removed (dialog, SEASON_NUMBER)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, EPISODE_NUMBER);
-        if (tag_data->available && tag_removed (dialog, EPISODE_NUMBER)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, TRACK_NUMBER);
-        if (tag_data->available && tag_removed (dialog, TRACK_NUMBER)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, ARTIST_NAME);
-        if (tag_data->available && tag_removed (dialog, ARTIST_NAME)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, TITLE);
-        if (tag_data->available && tag_removed (dialog, TITLE)) {
-                tag_data->set = FALSE;
-                return TRUE;
-        }
-
-        return FALSE;
-}
-
-static gboolean
 have_unallowed_character (NautilusBatchRename *dialog)
 {
         const gchar *entry_text;
@@ -1873,11 +1753,6 @@ file_names_widget_entry_on_changed (NautilusBatchRename *dialog)
         }
 
         if (have_unallowed_character (dialog))
-                return;
-
-        /* if a paranthesis was deleted from a tag, the entry will be modified
-         * and a new entry changed signal will be emitted */
-        if (tags_removed (dialog))
                 return;
 
         if (dialog->new_names != NULL)
@@ -2171,6 +2046,155 @@ file_names_widget_on_activate (NautilusBatchRename *dialog)
         batch_rename_dialog_on_response (dialog, GTK_RESPONSE_OK, NULL);
 }
 
+static gboolean
+remove_tag (NautilusBatchRename *dialog,
+            gchar               *tag_name,
+            gchar               *keyval_name,
+            gboolean             is_modifier)
+{
+        TagData *tag_data;
+        gint cursor_position;
+        GString *new_entry_text;
+        GString *entry_text;
+
+        g_object_get (dialog->name_entry, "cursor-position", &cursor_position, NULL);
+
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, tag_name);
+
+        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
+
+        if (gtk_editable_get_selection_bounds (GTK_EDITABLE (dialog->name_entry), NULL, NULL) &&
+            cursor_position == tag_data->position + strlen (tag_name) &&
+            g_strcmp0(keyval_name, "BackSpace") == 0)
+                return FALSE;
+
+        if (gtk_editable_get_selection_bounds (GTK_EDITABLE (dialog->name_entry), NULL, NULL) &&
+            cursor_position == tag_data->position &&
+            g_strcmp0(keyval_name, "Delete") == 0)
+                return FALSE;
+
+        if (g_strcmp0(keyval_name, "BackSpace") == 0 && tag_data->set) {
+                if (cursor_position > tag_data->position &&
+                    cursor_position <= tag_data->position + strlen (tag_name)) {
+                        new_entry_text = g_string_new ("");
+                        new_entry_text = g_string_append_len (new_entry_text,
+                                                              entry_text->str,
+                                                              tag_data->position);
+                        new_entry_text = g_string_append (new_entry_text,
+                                                          entry_text->str + tag_data->position + strlen (tag_name));
+
+                        gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), tag_data->position);
+
+                        tag_data->set = FALSE;
+
+                        g_string_free (new_entry_text, TRUE);
+                        g_string_free (entry_text, TRUE);
+
+                        return TRUE;
+                }
+        }
+
+        if (g_strcmp0(keyval_name, "Delete") == 0 && tag_data->set) {
+                if (cursor_position >= tag_data->position &&
+                    cursor_position < tag_data->position + strlen (tag_name)) {
+                        new_entry_text = g_string_new ("");
+                        new_entry_text = g_string_append_len (new_entry_text,
+                                                              entry_text->str,
+                                                              tag_data->position);
+                        new_entry_text = g_string_append (new_entry_text,
+                                                          entry_text->str + tag_data->position + strlen (tag_name));
+
+                        gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), tag_data->position);
+
+                        tag_data->set = FALSE;
+
+                        g_string_free (new_entry_text, TRUE);
+                        g_string_free (entry_text, TRUE);
+
+                        return TRUE;
+                }
+        }
+
+        if (!is_modifier && tag_data->set &&
+            g_strcmp0(keyval_name, "Left") != 0 &&
+            g_strcmp0(keyval_name, "Right") != 0) {
+                if (cursor_position > tag_data->position &&
+                    cursor_position < tag_data->position + strlen (tag_name)) {
+                        new_entry_text = g_string_new ("");
+                        new_entry_text = g_string_append_len (new_entry_text,
+                                                              entry_text->str,
+                                                              tag_data->position);
+                        new_entry_text = g_string_append (new_entry_text,
+                                                          entry_text->str + tag_data->position + strlen (tag_name));
+
+                        gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), tag_data->position);
+
+                        tag_data->set = FALSE;
+
+                        g_string_free (new_entry_text, TRUE);
+                        g_string_free (entry_text, TRUE);
+
+                        return TRUE;
+                }
+        }
+
+        return FALSE;
+}
+
+static gboolean
+on_key_press_event (GtkWidget    *widget,
+                    GdkEventKey  *event,
+                    gpointer      user_data)
+{
+        NautilusBatchRename *dialog;
+        gchar* keyval_name;
+        GdkEvent *gdk_event;
+
+        gdk_event = (GdkEvent *) event;
+
+        dialog = NAUTILUS_BATCH_RENAME (user_data);
+
+        keyval_name = gdk_keyval_name (event->keyval);
+
+        if (remove_tag (dialog, ORIGINAL_FILE_NAME, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, NUMBERING, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, NUMBERING0, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, NUMBERING00, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, CAMERA_MODEL, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, CREATION_DATE, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, SEASON_NUMBER, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, EPISODE_NUMBER, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, TRACK_NUMBER, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, ARTIST_NAME, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        if (remove_tag (dialog, TITLE, keyval_name, gdk_event->key.is_modifier))
+                return TRUE;
+
+        return FALSE;
+}
+
 static void
 nautilus_batch_rename_finalize (GObject *object)
 {
@@ -2271,6 +2295,7 @@ nautilus_batch_rename_class_init (NautilusBatchRenameClass *klass)
         gtk_widget_class_bind_template_callback (widget_class, select_next_conflict_up);
         gtk_widget_class_bind_template_callback (widget_class, select_next_conflict_down);
         gtk_widget_class_bind_template_callback (widget_class, batch_rename_dialog_on_response);
+        gtk_widget_class_bind_template_callback (widget_class, on_key_press_event);
 }
 
 GtkWidget*

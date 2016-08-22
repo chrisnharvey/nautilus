@@ -110,6 +110,7 @@
                             <property name="activates-default">True</property>
                             <signal name="changed" handler="file_names_widget_entry_on_changed" swapped="yes" />
                             <signal name="activate" handler="file_names_widget_on_activate" swapped="yes" />
+                            <signal name="key-press-event" handler="on_key_press_event" swapped="no"/>
                           </object>
                         </child>
                         <child>
