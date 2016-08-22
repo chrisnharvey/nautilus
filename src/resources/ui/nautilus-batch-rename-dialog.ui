@@ -60,7 +60,7 @@
                 </child>
                 <child>
                   <object class="GtkRadioButton" id="replace_mode_button">
-                    <property name="label" translatable="yes">Find and _replace text</property>
+                    <property name="label" translatable="yes">Find and replace _text</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">False</property>
@@ -140,6 +140,9 @@
                             </child>
                           </object>
                         </child>
+                            <style>
+                              <class name="linked"/>
+                            </style>
                       </object>
                       <packing>
                         <property name="left-attach">0</property>
@@ -295,19 +298,19 @@
                       <object class="GtkBox" id="a_box">
                         <property name="visible">True</property>
                         <child>
-                          <object class="GtkListBox" id="left_listbox">
+                          <object class="GtkListBox" id="original_name_listbox">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkListBox" id="middle_listbox">
+                          <object class="GtkListBox" id="arrow_listbox">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                           </object>
                         </child>
                         <child>
-                          <object class="GtkListBox" id="right_listbox">
+                          <object class="GtkListBox" id="result_listbox">
                             <property name="visible">True</property>
                             <property name="can_focus">False</property>
                           </object>
@@ -348,7 +351,7 @@
                       <object class="GtkButton" id="conflict_down">
                         <property name="visible">True</property>
                         <property name="relief">none</property>
-                         <signal name="clicked" handler="move_next_conflict_down" swapped="yes" />
+                         <signal name="clicked" handler="select_next_conflict_down" swapped="yes" />
                         <child>
                           <object class="GtkImage">
                             <property name="visible">True</property>
@@ -362,7 +365,7 @@
                       <object class="GtkButton" id="conflict_up">
                         <property name="visible">True</property>
                         <property name="relief">GTK_RELIEF_NONE</property>
-                        <signal name="clicked" handler="move_next_conflict_up" swapped="yes" />
+                        <signal name="clicked" handler="select_next_conflict_up" swapped="yes" />
                         <child>
                           <object class="GtkImage">
                             <property name="visible">True</property>
@@ -408,7 +411,7 @@
     <section>
         <attribute name="label" translatable="yes">Metadata</attribute>
       <item>
-        <attribute name="label" translatable="yes">Date Taken</attribute>
+        <attribute name="label" translatable="yes">Creation Date</attribute>
         <attribute name="action">dialog.add-creation-date-tag</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
@@ -435,6 +438,11 @@
       <item>
         <attribute name="label" translatable="yes">Artist Name</attribute>
         <attribute name="action">dialog.add-artist-name-tag</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Title</attribute>
+        <attribute name="action">dialog.add-title-tag</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>

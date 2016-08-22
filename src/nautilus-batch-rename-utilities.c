@@ -1,3 +1,20 @@
+/* nautilus-batch-rename-utilities.c
+ *
+ * Copyright (C) 2016 Alexandru Pandelea <alexandru.pandelea@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include "nautilus-batch-rename.h"
 #include "nautilus-batch-rename-utilities.h"
@@ -9,13 +26,11 @@
 #include <stdarg.h>
 #include <eel/eel-vfs-extensions.h>
 
-#define MAX_DISPLAY_LEN 40
-#define MAX_FILTER_LEN 500
-#define MAX_FILE_LEN 1000
+#define HAVE_CONFLICT 1
 
 typedef struct {
         NautilusFile *file;
-        gint         *position;
+        gint          position;
 } CreateDateElem;
 
 typedef struct {
@@ -27,9 +42,10 @@ typedef struct {
         gboolean have_creation_date;
         gboolean have_equipment;
         gboolean have_season;
-        gboolean have_episode_nr;
-        gboolean have_track_nr;
+        gboolean have_episode_number;
+        gboolean have_track_number;
         gboolean have_artist_name;
+        gboolean have_title;
 } QueryData;
 
 static void cursor_callback (GObject      *object,
@@ -43,9 +59,18 @@ string_free (gpointer mem)
                 g_string_free (mem, TRUE);
 }
 
+void
+conflict_data_free (gpointer mem)
+{
+        ConflictData *data = mem;
+
+        g_free (data->name);
+        g_free (data);
+}
+
 static GString*
 batch_rename_replace (gchar *string,
-                      gchar *substr,
+                      gchar *substring,
                       gchar *replacement)
 {
         GString *new_string;
@@ -54,19 +79,19 @@ batch_rename_replace (gchar *string,
 
         new_string = g_string_new ("");
 
-        if (substr == NULL || replacement == NULL) {
+        if (substring == NULL || replacement == NULL) {
                 g_string_append (new_string, string);
 
                 return new_string;
         }
 
-        if (g_strcmp0 (substr, "") == 0) {
+        if (g_utf8_strlen (substring, -1) == 0) {
                 g_string_append (new_string, string);
 
                 return new_string;
         }
 
-        splitted_string = g_strsplit (string, substr, -1);
+        splitted_string = g_strsplit (string, substring, -1);
         if (splitted_string == NULL) {
                 g_string_append (new_string, string);
 
@@ -87,18 +112,30 @@ batch_rename_replace (gchar *string,
         return new_string;
 }
 
-static GString*
-escape_ampersand (const gchar *string)
+GString*
+batch_rename_replace_label_text (gchar       *string,
+                                 const gchar *substring)
 {
         GString *new_string;
         gchar **splitted_string;
+        gchar *token;
         gint i, n_splits;
 
         new_string = g_string_new ("");
 
-        splitted_string = g_strsplit (string, "&", -1);
+        if (substring == NULL || g_strcmp0 (substring, "") == 0) {
+                token = g_markup_escape_text (string, strlen (string));
+                new_string = g_string_append (new_string, token);
+                g_free (token);
+
+                return new_string;
+        }
+
+        splitted_string = g_strsplit (string, substring, -1);
         if (splitted_string == NULL) {
-                new_string = g_string_append (new_string, string);
+                token = g_markup_escape_text (string, strlen (string));
+                new_string = g_string_append (new_string, token);
+                g_free (token);
 
                 return new_string;
         }
@@ -106,60 +143,18 @@ escape_ampersand (const gchar *string)
         n_splits = g_strv_length (splitted_string);
 
         for (i = 0; i < n_splits; i++) {
-                new_string = g_string_append (new_string, splitted_string[i]);
+                token = g_markup_escape_text (splitted_string[i], strlen (splitted_string[i]));
+                new_string = g_string_append (new_string, token);
 
-                if (i != n_splits - 1)
-                        new_string = g_string_append (new_string,"&amp;");
-        }
-
-        g_strfreev (splitted_string);
-
-        return new_string;
-}
-
-
-GString*
-batch_rename_replace_label_text (gchar       *string,
-                                 const gchar *substr)
-{
-        GString *new_string, *token;
-        gchar **splitted_string;
-        gint i, n_splits;
-
-        new_string = g_string_new ("");
-
-        if (substr == NULL || g_strcmp0 (substr, "") == 0) {
-                token = escape_ampersand (string);
-                new_string = g_string_append (new_string, token->str);
-                g_string_free (token, TRUE);
-
-                return new_string;
-        }
-
-        splitted_string = g_strsplit (string, substr, -1);
-        if (splitted_string == NULL) {
-                token = escape_ampersand (string);
-                new_string = g_string_append (new_string, token->str);
-                g_string_free (token, TRUE);
-
-                return new_string;
-        }
-
-        n_splits = g_strv_length (splitted_string);
-
-        for (i = 0; i < n_splits; i++) {
-                token = escape_ampersand (splitted_string[i]);
-                new_string = g_string_append (new_string, token->str);
-
-                g_string_free (token, TRUE);
+                g_free (token);
 
                 if (i != n_splits - 1) {
-                        token = escape_ampersand (substr);
+                        token = g_markup_escape_text (substring, strlen (substring));
                         g_string_append_printf (new_string,
-                                                "<span background=\'#FF8C00\'>%s</span>",
-                                                token->str);
+                                                "<span background=\'#f57900\' color='white'>%s</span>",
+                                                token);
 
-                        g_string_free (token, TRUE);
+                        g_free (token);
                 }
         }
 
@@ -181,33 +176,38 @@ get_metadata (GList *selection_metadata,
                 if (g_strcmp0 (file_name, file_metadata->file_name->str) == 0) {
                         if (g_strcmp0 (metadata, "creation_date") == 0 &&
                             file_metadata->creation_date != NULL &&
-                            g_strcmp0 (file_metadata->creation_date->str, ""))
+                            file_metadata->creation_date->len != 0)
                                 return file_metadata->creation_date->str;
 
                         if (g_strcmp0 (metadata, "equipment") == 0 &&
                             file_metadata->equipment != NULL &&
-                            g_strcmp0 (file_metadata->equipment->str, ""))
+                            file_metadata->equipment->len != 0)
                                 return file_metadata->equipment->str;
 
                         if (g_strcmp0 (metadata, "season") == 0 &&
                             file_metadata->season != NULL &&
-                            g_strcmp0 (file_metadata->season->str, ""))
+                            file_metadata->season->len != 0)
                                 return file_metadata->season->str;
 
-                        if (g_strcmp0 (metadata, "episode_nr") == 0 &&
-                            file_metadata->episode_nr != NULL &&
-                            g_strcmp0 (file_metadata->episode_nr->str, ""))
-                                return file_metadata->episode_nr->str;
+                        if (g_strcmp0 (metadata, "episode_number") == 0 &&
+                            file_metadata->episode_number != NULL &&
+                            file_metadata->episode_number->len != 0)
+                                return file_metadata->episode_number->str;
 
-                        if (g_strcmp0 (metadata, "track_nr") == 0 &&
-                            file_metadata->track_nr != NULL &&
-                            g_strcmp0 (file_metadata->track_nr->str, ""))
-                                return file_metadata->track_nr->str;
+                        if (g_strcmp0 (metadata, "track_number") == 0 &&
+                            file_metadata->track_number != NULL &&
+                            file_metadata->track_number->len != 0)
+                                return file_metadata->track_number->str;
 
                         if (g_strcmp0 (metadata, "artist_name") == 0 &&
                             file_metadata->artist_name != NULL &&
-                            g_strcmp0 (file_metadata->artist_name->str, ""))
+                            file_metadata->artist_name->len != 0)
                                 return file_metadata->artist_name->str;
+
+                        if (g_strcmp0 (metadata, "title") == 0 &&
+                            file_metadata->title != NULL &&
+                            file_metadata->title->len != 0)
+                                return file_metadata->title->str;
                 }
         }
 
@@ -220,18 +220,21 @@ batch_rename_format (NautilusFile *file,
                      GList        *selection_metadata,
                      gint          count)
 {
+        GDateTime *datetime;
         GList *l;
-        GString *tag, *new_name;
+        GString *tag;
+        GString *new_name;
+        GString *create_date;
         gboolean added_tag;
-        gint start_offset, end_offset;
-        g_autofree gchar *file_name, *extension;
-        gchar *metadata, **splitted_date, *name, *base_name;
+        g_autofree gchar *file_name;
+        g_autofree gchar *extension;
+        gchar *metadata;
+        gchar **splitted_date;
+        gchar *base_name;
+        gchar *date;
 
         file_name = nautilus_file_get_display_name (file);
         extension = nautilus_file_get_extension (file);
-
-        eel_filename_get_rename_region (file_name,
-                                        &start_offset, &end_offset);
 
         new_name = g_string_new ("");
 
@@ -239,44 +242,45 @@ batch_rename_format (NautilusFile *file,
                 tag = l->data;
                 added_tag = FALSE;
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Original file name]") == 0) {
-                        name = nautilus_file_get_display_name (file);
-
-                        base_name = g_malloc (MAX_FILE_LEN);
-                        g_utf8_strncpy (base_name, name, end_offset);
+                if (!added_tag && g_strcmp0 (tag->str, ORIGINAL_FILE_NAME) == 0) {
+                        base_name = eel_filename_strip_extension (file_name);
 
                         new_name = g_string_append (new_name, base_name);
 
                         added_tag = TRUE;
-                        g_free (name);
                         g_free (base_name);
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[1, 2, 3]") == 0) {
+                if (!added_tag && g_strcmp0 (tag->str, NUMBERING) == 0) {
                         g_string_append_printf (new_name, "%d", count);
                         added_tag = TRUE;
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[01, 02, 03]") == 0) {
-                        if (count < 10)
+                if (!added_tag && g_strcmp0 (tag->str, NUMBERING0) == 0) {
+                        if (count < 10) {
                                 g_string_append_printf (new_name, "0%d", count);
-                        else
+                        } else {
                                 g_string_append_printf (new_name, "%d", count);
+                        }
+
                         added_tag = TRUE;
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[001, 002, 003]") == 0) {
-                        if (count < 10)
+                if (!added_tag && g_strcmp0 (tag->str, NUMBERING00) == 0) {
+                        if (count < 10) {
                                 g_string_append_printf (new_name, "00%d", count);
-                        else
-                                if (count < 100)
+                        } else {
+                                if (count < 100) {
                                         g_string_append_printf (new_name, "0%d", count);
-                                else
+                                } else {
                                         g_string_append_printf (new_name, "%d", count);
+                                }
+                        }
+
                         added_tag = TRUE;
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Camera model]") == 0) {
+                if (!added_tag && g_strcmp0 (tag->str, CAMERA_MODEL) == 0) {
                         metadata = get_metadata (selection_metadata, file_name, "equipment");
 
                         if (metadata != NULL) {
@@ -285,20 +289,38 @@ batch_rename_format (NautilusFile *file,
                         }
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Date taken]") == 0) {
+                if (!added_tag && g_strcmp0 (tag->str, CREATION_DATE) == 0) {
                         metadata = get_metadata (selection_metadata, file_name, "creation_date");
 
                         if (metadata != NULL) {
-                                splitted_date = g_strsplit (metadata, "T", -1);
+                                splitted_date = g_strsplit_set (metadata, "T:-Z", -1);
 
-                                new_name = g_string_append (new_name, splitted_date[0]);
+                                datetime = g_date_time_new_local (atoi (splitted_date[0]),
+                                                                  atoi (splitted_date[1]),
+                                                                  atoi (splitted_date[2]),
+                                                                  atoi (splitted_date[3]),
+                                                                  atoi (splitted_date[4]),
+                                                                  atoi (splitted_date[5]));
+
+                                date = g_date_time_format (datetime, "%x");
+
+                                if (strstr (date, "/") != NULL) {
+                                        create_date = batch_rename_replace (date, "/", "-");
+                                        new_name = g_string_append (new_name, create_date->str);
+
+                                        g_string_free (create_date, TRUE);
+                                } else {
+                                        new_name = g_string_append (new_name, date);
+                                }
+
                                 added_tag = TRUE;
 
+                                g_free (date);
                                 g_strfreev (splitted_date);
                         }
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Season nr]") == 0) {
+                if (!added_tag && g_strcmp0 (tag->str, SEASON_NUMBER) == 0) {
                         metadata = get_metadata (selection_metadata, file_name, "season");
 
                         if (metadata != NULL) {
@@ -307,8 +329,8 @@ batch_rename_format (NautilusFile *file,
                         }
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Episode nr]") == 0) {
-                        metadata = get_metadata (selection_metadata, file_name, "episode_nr");
+                if (!added_tag && g_strcmp0 (tag->str, EPISODE_NUMBER) == 0) {
+                        metadata = get_metadata (selection_metadata, file_name, "episode_number");
 
                         if (metadata != NULL) {
                                 new_name = g_string_append (new_name, metadata);
@@ -316,8 +338,8 @@ batch_rename_format (NautilusFile *file,
                         }
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Track nr]") == 0) {
-                        metadata = get_metadata (selection_metadata, file_name, "track_nr");
+                if (!added_tag && g_strcmp0 (tag->str, TRACK_NUMBER) == 0) {
+                        metadata = get_metadata (selection_metadata, file_name, "track_number");
 
                         if (metadata != NULL) {
                                 new_name = g_string_append (new_name, metadata);
@@ -325,8 +347,17 @@ batch_rename_format (NautilusFile *file,
                         }
                 }
 
-                if (!added_tag && g_strcmp0 (tag->str, "[Artist name]") == 0) {
+                if (!added_tag && g_strcmp0 (tag->str, ARTIST_NAME) == 0) {
                         metadata = get_metadata (selection_metadata, file_name, "artist_name");
+
+                        if (metadata != NULL) {
+                                new_name = g_string_append (new_name, metadata);
+                                added_tag = TRUE;
+                        }
+                }
+
+                if (!added_tag && g_strcmp0 (tag->str, TITLE) == 0) {
+                        metadata = get_metadata (selection_metadata, file_name, "title");
 
                         if (metadata != NULL) {
                                 new_name = g_string_append (new_name, metadata);
@@ -338,26 +369,28 @@ batch_rename_format (NautilusFile *file,
                         new_name = g_string_append (new_name, tag->str);
         }
 
-        if (g_strcmp0 (new_name->str, "") == 0)
+        if (g_strcmp0 (new_name->str, "") == 0) {
                 new_name = g_string_append (new_name, file_name);
-        else
+        } else {
                 if (extension != NULL)
                         new_name = g_string_append (new_name, extension);
+        }
 
         return new_name;
 }
 
 GList*
-get_new_names_list (NautilusBatchRenameMode      mode,
-                    GList                       *selection,
-                    GList                       *tags_list,
-                    GList                       *selection_metadata,
-                    gchar                       *entry_text,
-                    gchar                       *replace_text)
+batch_rename_get_new_names_list (NautilusBatchRenameMode mode,
+                                 GList                  *selection,
+                                 GList                  *tags_list,
+                                 GList                  *selection_metadata,
+                                 gchar                  *entry_text,
+                                 gchar                  *replace_text)
 {
         GList *l;
         GList *result;
         GString *file_name;
+        GString *new_name;
         NautilusFile *file;
         gchar *name;
         gint count;
@@ -369,51 +402,50 @@ get_new_names_list (NautilusBatchRenameMode      mode,
         for (l = selection; l != NULL; l = l->next) {
                 file = NAUTILUS_FILE (l->data);
 
+                file_name = g_string_new ("");
                 name = nautilus_file_get_name (file);
                 g_string_append (file_name, name);
 
                 /* get the new name here and add it to the list*/
                 if (mode == NAUTILUS_BATCH_RENAME_FORMAT) {
-                        result = g_list_prepend (result,
-                                                 batch_rename_format (file,
-                                                                      tags_list,
-                                                                      selection_metadata,
-                                                                      count++));
+                        new_name = batch_rename_format (file,
+                                                        tags_list,
+                                                        selection_metadata,
+                                                        count++);
+                        result = g_list_prepend (result, new_name);
                 }
 
-                if (mode == NAUTILUS_BATCH_RENAME_REPLACE)
-                        result = g_list_prepend (result,
-                                                 batch_rename_replace (file_name->str,
-                                                                       entry_text,
-                                                                       replace_text));
+                if (mode == NAUTILUS_BATCH_RENAME_REPLACE) {
+                        new_name = batch_rename_replace (file_name->str,
+                                                         entry_text,
+                                                         replace_text);
+                        result = g_list_prepend (result, new_name);
+                }
                 
-                g_string_erase (file_name, 0, -1);
+                g_string_free (file_name, TRUE);
                 g_free (name);
         }
-
-        g_string_free (file_name, TRUE);
 
         return result;
 }
 
-/* If there is a file that generates a conflict, there is a case where that isn't
- * actually a conflict. This case is when the file that generates the conflict is
- * in the selection and this file changed it's name */
+/* There is a case that a new name for a file conflicts with an existing file name
+ * in the directory but it's not a problem because the file in the directory that
+ * conflicts is part of the batch renaming selection and it's going to change the name anyway. */
 gboolean
-file_name_changed (GList        *selection,
-                   GList        *new_names,
-                   GString      *old_name,
-                   gchar        *parent_uri)
+file_name_conflicts_with_results (GList        *selection,
+                                  GList        *new_names,
+                                  GString      *old_name,
+                                  gchar        *parent_uri)
 {
-        GList *l1, *l2;
+        GList *l1;
+        GList *l2;
         NautilusFile *selection_file;
         gchar *name1;
         GString *new_name;
         gchar *selection_parent_uri;
 
-        l2 = new_names;
-
-        for (l1 = selection; l1 != NULL; l1 = l1->next) {
+        for (l1 = selection, l2 = new_names; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
                 selection_file = NAUTILUS_FILE (l1->data);
                 name1 = nautilus_file_get_name (selection_file);
 
@@ -433,133 +465,11 @@ file_name_changed (GList        *selection,
                         return TRUE;
                 }
 
-                l2 = l2->next;
-
                 g_free (selection_parent_uri);
         }
 
         /* such a file doesn't exist so there actually is a conflict */
         return FALSE;
-}
-
-static void
-got_files_callback (NautilusDirectory *directory, GList *files, gpointer callback_data)
-{
-        check_conflict_for_file (NAUTILUS_BATCH_RENAME (callback_data),
-                                 directory,
-                                 files);
-}
-
-GList*
-list_has_duplicates (NautilusBatchRename *dialog,
-                     NautilusDirectory   *model,
-                     GList               *new_names,
-                     GList               *selection,
-                     GList               *parents_list,
-                     gboolean             same_parent,
-                     GCancellable        *cancellable)
-{
-        GList *directory_files, *l1, *l2, *l3, *result;
-        NautilusFile *file1, *file2;
-        GString *file_name1, *file_name2, *file_name3, *new_name;
-        NautilusDirectory *parent;
-        gboolean is_renameable_desktop_file, have_conflict;
-        gchar *name;
-
-        result = NULL;
-
-        file_name1 = g_string_new ("");
-        file_name2 = g_string_new ("");
-
-        if (!same_parent) {
-                for (l1 = parents_list; l1 != NULL; l1 = l1->next) {
-                        parent = nautilus_directory_get_by_uri (l1->data);
-
-                        nautilus_directory_call_when_ready (parent,
-                                                            NAUTILUS_FILE_ATTRIBUTE_INFO,
-                                                            TRUE,
-                                                            got_files_callback,
-                                                            dialog);
-
-                }
-            return NULL;
-        }
-
-        directory_files = nautilus_directory_get_file_list (model);
-        l3 = selection;
-
-        for (l1 = new_names; l1 != NULL; l1 = l1->next) {
-                if (g_cancellable_is_cancelled (cancellable)) {
-                        g_list_free_full (result, g_free);
-                        g_list_free_full (new_names, string_free);
-                        break;
-                }
-
-                file1 = NAUTILUS_FILE (l3->data);
-                new_name = l1->data;
-                is_renameable_desktop_file = nautilus_file_is_mime_type (file1, "application/x-desktop");
-
-                have_conflict = FALSE;
-
-                if (!is_renameable_desktop_file && strstr (new_name->str, "/") != NULL) {
-                        result = g_list_prepend (result, strdup (new_name->str));
-
-                        continue;
-                }
-
-                name = nautilus_file_get_name (file1);
-                g_string_erase (file_name1, 0, -1);
-                g_string_append (file_name1, name);
-
-                g_free (name);
-
-                /* check for duplicate only if the name has changed */
-                if (!g_string_equal (new_name, file_name1)) {
-                        /* check with already existing files */
-                        for (l2 = directory_files; l2 != NULL; l2 = l2->next) {
-                                file2 = NAUTILUS_FILE (l2->data);
-
-                                name = nautilus_file_get_name (file2);
-                                g_string_erase (file_name2, 0, -1);
-                                g_string_append (file_name2, name);
-                                g_free (name);
-
-                                if (g_string_equal (new_name, file_name2) &&
-                                    !file_name_changed (selection, new_names, new_name, NULL)) {
-                                        result = g_list_prepend (result, strdup (new_name->str));
-                                        have_conflict = TRUE;
-
-                                        break;
-                                }
-                        }
-
-                        /* check with files that will result from the batch rename, unless
-                         * this file already has a conflict */
-                        if (!have_conflict)
-                                for (l2 = new_names; l2 != NULL; l2 = l2->next) {
-                                        file_name3 = l2->data;
-
-                                        if (l1 != l2 && g_string_equal (new_name, file_name3)) {
-                                                result = g_list_prepend (result, strdup (new_name->str));
-
-                                                break;
-                                        }
-                                }
-                }
-
-                l3 = l3->next;
-        }
-
-        g_string_free (file_name1, TRUE);
-        g_string_free (file_name2, TRUE);
-        nautilus_file_list_free (directory_files);
-
-        if (!g_cancellable_is_cancelled (cancellable))
-                g_list_free_full (new_names, string_free);
-        else
-                return NULL;
-
-        return g_list_reverse (result);
 }
 
 gint
@@ -632,7 +542,7 @@ compare_files_by_first_created (gconstpointer a,
         elem1 = (CreateDateElem*) a;
         elem2 = (CreateDateElem*) b;
 
-        return *(elem1->position) - *(elem2->position);
+        return elem1->position - elem2->position;
 }
 
 gint
@@ -645,17 +555,18 @@ compare_files_by_last_created (gconstpointer a,
         elem1 = (CreateDateElem*) a;
         elem2 = (CreateDateElem*) b;
 
-        return *(elem2->position) - *(elem1->position);
+        return elem2->position - elem1->position;
 }
 
 GList*
 nautilus_batch_rename_sort (GList       *selection,
                             SortingMode  mode,
-                            GHashTable  *hash_table)
+                            GHashTable  *creation_date_table)
 {
         GList *l,*l2;
         NautilusFile *file;
-        GList *createDate_list, *createDate_list_sorted;
+        GList *create_date_list;
+        GList *create_date_list_sorted;
         gchar *name;
 
         if (mode == ORIGINAL_ASCENDING)
@@ -674,35 +585,35 @@ nautilus_batch_rename_sort (GList       *selection,
         }
 
         if (mode == FIRST_CREATED || mode == LAST_CREATED) {
-                createDate_list = NULL;
+                create_date_list = NULL;
 
                 for (l = selection; l != NULL; l = l->next) {
                         CreateDateElem *elem;
-                        elem = g_malloc (sizeof (NautilusFile*) + sizeof (gint*));
+                        elem = g_new (CreateDateElem, 1);
 
                         file = NAUTILUS_FILE (l->data);
 
                         name = nautilus_file_get_name (file);
                         elem->file = file;
-                        elem->position = (gint*) g_hash_table_lookup (hash_table, name);
+                        elem->position = GPOINTER_TO_INT (g_hash_table_lookup (creation_date_table, name));
                         g_free (name);
 
-                        createDate_list = g_list_prepend (createDate_list, elem);
+                        create_date_list = g_list_prepend (create_date_list, elem);
                 }
 
                 if (mode == FIRST_CREATED)
-                        createDate_list_sorted = g_list_sort (createDate_list,
+                        create_date_list_sorted = g_list_sort (create_date_list,
                                                               compare_files_by_first_created);
                 else
-                        createDate_list_sorted = g_list_sort (createDate_list,
+                        create_date_list_sorted = g_list_sort (create_date_list,
                                                               compare_files_by_last_created);
 
-                for (l = selection, l2 = createDate_list_sorted; l2 != NULL; l = l->next, l2 = l2->next) {
+                for (l = selection, l2 = create_date_list_sorted; l2 != NULL; l = l->next, l2 = l2->next) {
                         CreateDateElem *elem = l2->data;
                         l->data = elem->file;
                 }
 
-                g_list_free (createDate_list);
+                g_list_free_full (create_date_list, g_free);
         }
 
         return selection;
@@ -726,12 +637,19 @@ cursor_callback (GObject      *object,
         GHashTable *hash_table;
         TrackerSparqlCursor *cursor;
         gboolean success;
-        gint *value;
         QueryData *data;
         GError *error;
-        const gchar *file_name;
         GList *l;
         FileMetadata *metadata;
+        FileMetadata *metadata_clear;
+        const gchar *file_name;
+        const gchar *creation_date;
+        const gchar *equipment;
+        const gchar *season_number;
+        const gchar *episode_number;
+        const gchar *track_number;
+        const gchar *artist_name;
+        const gchar *title;
 
         error = NULL;
         metadata = NULL;
@@ -745,14 +663,21 @@ cursor_callback (GObject      *object,
                 g_clear_error (&error);
                 g_clear_object (&cursor);
 
-
-                query_finished (data->dialog, data->hash_table, data->selection_metadata);
+                nautilus_batch_rename_query_finished (data->dialog, data->hash_table, data->selection_metadata);
 
                 return;
         }
 
+        creation_date = tracker_sparql_cursor_get_string (cursor, 1, NULL);
+        equipment = tracker_sparql_cursor_get_string (cursor, 2, NULL);
+        season_number = tracker_sparql_cursor_get_string (cursor, 3, NULL);
+        episode_number = tracker_sparql_cursor_get_string (cursor, 4, NULL);
+        track_number = tracker_sparql_cursor_get_string (cursor, 5, NULL);
+        artist_name = tracker_sparql_cursor_get_string (cursor, 6, NULL);
+        title = tracker_sparql_cursor_get_string (cursor, 7, NULL);
+
         /* creation date used for sorting criteria */
-        if (tracker_sparql_cursor_get_string (cursor, 1, NULL) == NULL) {
+        if (creation_date == NULL) {
                 if (hash_table != NULL)
                         g_hash_table_destroy (hash_table);
 
@@ -760,12 +685,9 @@ cursor_callback (GObject      *object,
                 data->have_creation_date = FALSE;
         } else {
                 if (data->have_creation_date){
-                        value = g_malloc (sizeof(int));
-                        *value = g_hash_table_size (hash_table);
-
                         g_hash_table_insert (hash_table,
-                             strdup (tracker_sparql_cursor_get_string (cursor, 0, NULL)),
-                             value);
+                        g_strdup (tracker_sparql_cursor_get_string (cursor, 0, NULL)),
+                        GINT_TO_POINTER (g_hash_table_size (hash_table)));
                 }
         }
         file_name = tracker_sparql_cursor_get_string (cursor, 0, NULL);
@@ -778,98 +700,121 @@ cursor_callback (GObject      *object,
 
         /* Metadata to be used in file name
          * creation date */
-        if (data->have_creation_date && tracker_sparql_cursor_get_string (cursor, 1, NULL) == NULL) {
-                data->have_creation_date = FALSE;
+        if (data->have_creation_date) {
+                if (creation_date == NULL) {
+                        data->have_creation_date = FALSE;
 
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->creation_date, TRUE);
-                        metadata->creation_date = NULL;
-                }
-        } else {
-                if (data->have_creation_date)
+                                g_string_free (metadata_clear->creation_date, TRUE);
+                                metadata_clear->creation_date = NULL;
+                        }
+                } else {
                         g_string_append (metadata->creation_date,
-                                         tracker_sparql_cursor_get_string (cursor, 1, NULL));
+                                         creation_date);
+                }
         }
 
         /* equipment */
-        if (data->have_equipment && tracker_sparql_cursor_get_string (cursor, 2, NULL) == NULL) {
-                data->have_equipment = FALSE;
+        if (data->have_equipment) {
+                if (equipment == NULL) {
+                        data->have_equipment = FALSE;
 
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->equipment, TRUE);
-                        metadata->equipment = NULL;
-                }
-        } else {
-                if (data->have_equipment)
+                                g_string_free (metadata_clear->equipment, TRUE);
+                                metadata_clear->equipment = NULL;
+                        }
+                } else {
                         g_string_append (metadata->equipment,
-                                         tracker_sparql_cursor_get_string (cursor, 2, NULL));
+                                         equipment);
+                }
         }
 
-        /* season nr */
-        if (data->have_season && tracker_sparql_cursor_get_string (cursor, 3, NULL) == NULL) {
-                data->have_season = FALSE;
+        /* season number */
+        if (data->have_season) {
+                if (season_number == NULL) {
+                        data->have_season = FALSE;
 
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->season, TRUE);
-                        metadata->season = NULL;
-                }
-        } else {
-                if (data->have_season)
+                                g_string_free (metadata_clear->season, TRUE);
+                                metadata_clear->season = NULL;
+                        }
+                } else {
                         g_string_append (metadata->season,
-                                         tracker_sparql_cursor_get_string (cursor, 3, NULL));
+                                         season_number);
+                }
         }
 
-        /* episode nr */
-        if (data->have_episode_nr && tracker_sparql_cursor_get_string (cursor, 4, NULL) == NULL) {
-                data->have_episode_nr = FALSE;
+        /* episode number */
+        if (data->have_episode_number) {
+                if (episode_number == NULL) {
+                        data->have_episode_number = FALSE;
 
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->episode_nr, TRUE);
-                        metadata->episode_nr = NULL;
+                                g_string_free (metadata_clear->episode_number, TRUE);
+                                metadata_clear->episode_number = NULL;
+                        }
+                } else {
+                        g_string_append (metadata->episode_number,
+                                         episode_number);
                 }
-        } else {
-                if (data->have_episode_nr)
-                        g_string_append (metadata->episode_nr,
-                                         tracker_sparql_cursor_get_string (cursor, 4, NULL));
         }
 
         /* track number */
-        if (data->have_track_nr && tracker_sparql_cursor_get_string (cursor, 5, NULL) == NULL) {
-                data->have_track_nr = FALSE;
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+        if (data->have_track_number) {
+                if (track_number == NULL) {
+                        data->have_track_number = FALSE;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->track_nr, TRUE);
-                        metadata->track_nr = NULL;
+                                g_string_free (metadata_clear->track_number, TRUE);
+                                metadata_clear->track_number = NULL;
+                        }
+                } else {
+                        g_string_append (metadata->track_number,
+                                         track_number);
                 }
-        } else {
-                if (data->have_track_nr)
-                        g_string_append (metadata->track_nr,
-                                         tracker_sparql_cursor_get_string (cursor, 5, NULL));
         }
 
         /* artist name */
-        if (data->have_artist_name && tracker_sparql_cursor_get_string (cursor, 6, NULL) == NULL) {
-                data->have_artist_name = FALSE;
+        if (data->have_artist_name) {
+                if (artist_name == NULL) {
+                        data->have_artist_name = FALSE;
 
-                for (l = data->selection_metadata; l != NULL; l = l->next) {
-                        metadata = l->data;
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
 
-                        g_string_free (metadata->artist_name, TRUE);
-                        metadata->artist_name = NULL;
-                }
-        } else {
-                if (data->have_artist_name)
+                                g_string_free (metadata_clear->artist_name, TRUE);
+                                metadata_clear->artist_name = NULL;
+                        }
+                } else {
                         g_string_append (metadata->artist_name,
-                                         tracker_sparql_cursor_get_string (cursor, 6, NULL));
+                                         artist_name);
+                }
+        }
+
+        /* title */
+        if (data->have_title) {
+                if (title == NULL) {
+                        data->have_title = FALSE;
+
+                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
+
+                                g_string_free (metadata_clear->title, TRUE);
+                                metadata_clear->title = NULL;
+                        }
+                } else {
+                        g_string_append (metadata->title,
+                                         title);
+                }
         }
 
         /* Get next */
@@ -877,9 +822,9 @@ cursor_callback (GObject      *object,
 }
 
 static void
-query_callback (GObject      *object,
-                GAsyncResult *result,
-                gpointer      user_data)
+batch_rename_query_callback (GObject      *object,
+                             GAsyncResult *result,
+                             gpointer      user_data)
 {
         TrackerSparqlConnection *connection;
         TrackerSparqlCursor *cursor;
@@ -898,7 +843,9 @@ query_callback (GObject      *object,
         if (error != NULL) {
                 g_error_free (error);
 
-                query_finished (data->dialog, data->hash_table, data->selection_metadata);
+                nautilus_batch_rename_query_finished (data->dialog,
+                                                      data->hash_table,
+                                                      data->selection_metadata);
         } else {
                 cursor_next (data, cursor);
         }
@@ -922,9 +869,15 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
         error = NULL;
         selection_metadata = NULL;
 
-        query = g_string_new ("SELECT nfo:fileName(?file) nie:contentCreated(?file) "
-                              "nfo:model(nfo:equipment(?file)) nmm:season(?file) nmm:episodeNumber(?file) "
-                              "nmm:trackNumber(?file) nmm:artistName(?file) "
+        query = g_string_new ("SELECT "
+                              "nfo:fileName(?file) "
+                              "nie:contentCreated(?file) "
+                              "nfo:model(nfo:equipment(?file)) "
+                              "nmm:season(?file) "
+                              "nmm:episodeNumber(?file) "
+                              "nmm:trackNumber(?file) "
+                              "nmm:artistName(nmm:performer(?file)) "
+                              "nie:title(?file) "
                               "WHERE { ?file a nfo:FileDataObject. ");
 
         g_string_append_printf (query,
@@ -944,14 +897,15 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
                                                 "|| nfo:fileName(?file) = '%s' ",
                                                 file_name);
 
-                metadata = g_malloc (9 * sizeof (GString*));
+                metadata = g_new (FileMetadata, 1);
                 metadata->file_name = g_string_new (file_name);
                 metadata->creation_date = g_string_new ("");
                 metadata->equipment = g_string_new ("");
                 metadata->season = g_string_new ("");
-                metadata->episode_nr = g_string_new ("");
-                metadata->track_nr = g_string_new ("");
+                metadata->episode_number = g_string_new ("");
+                metadata->track_number = g_string_new ("");
                 metadata->artist_name = g_string_new ("");
+                metadata->title = g_string_new ("");
 
                 selection_metadata = g_list_append (selection_metadata, metadata);
 
@@ -970,68 +924,38 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
         hash_table = g_hash_table_new_full (g_str_hash,
                                             g_str_equal,
                                             (GDestroyNotify) g_free,
-                                            (GDestroyNotify) g_free);
+                                            NULL);
 
-        data = g_malloc (sizeof (NautilusBatchRename*) +
-                         sizeof (GHashTable*) +
-                         sizeof (GList*) +
-                         9 * sizeof (gboolean));
+        data = g_new (QueryData, 1);
         data->hash_table = hash_table;
         data->dialog = dialog;
         data->selection_metadata = selection_metadata;
 
         data->have_season = TRUE;
         data->have_creation_date = TRUE;
-        data->have_season = TRUE;
         data->have_artist_name = TRUE;
-        data->have_track_nr = TRUE;
+        data->have_track_number = TRUE;
         data->have_equipment = TRUE;
-        data->have_episode_nr = TRUE;
+        data->have_episode_number = TRUE;
+        data->have_title = TRUE;
 
         /* Make an asynchronous query to the store */
         tracker_sparql_connection_query_async (connection,
                                                query->str,
                                                NULL,
-                                               query_callback,
+                                               batch_rename_query_callback,
                                                data);
 
         g_object_unref (connection);
         g_string_free (query, TRUE);
 }
 
-gboolean
-selection_has_single_parent (GList *selection)
-{
-        GList *l;
-        NautilusFile *file;
-        GString *parent_name1, *parent_name2;
-
-        file = NAUTILUS_FILE (selection->data);
-
-        parent_name2 = g_string_new ("");
-        parent_name1 = g_string_new ("");
-        g_string_append (parent_name1, nautilus_file_get_parent_uri (file));
-
-        for (l = selection->next; l != NULL; l = l->next) {
-                file = NAUTILUS_FILE (l->data);
-
-                g_string_erase (parent_name2, 0, -1);
-                g_string_append (parent_name2, nautilus_file_get_parent_uri (file));
-
-                if (!g_string_equal (parent_name1, parent_name2))
-                        return FALSE;
-        }
-
-        g_string_free (parent_name1, TRUE);
-        g_string_free (parent_name2, TRUE);
-
-        return TRUE;
-}
-
 GList*
 distinct_file_parents (GList *selection)
 {
-        GList *result, *l1, *l2;
+        GList *result;
+        GList *l1;
+        GList *l2;
         NautilusFile *file;
         gboolean exists;
         gchar *parent_uri;

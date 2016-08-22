@@ -5,24 +5,23 @@
 #include <gtk/gtk.h>
 #include <tracker-sparql.h>
 
-GList* get_new_names_list                       (NautilusBatchRenameMode      mode,
+GList* batch_rename_get_new_names_list          (NautilusBatchRenameMode      mode,
                                                  GList                       *selection,
                                                  GList                       *tags_list,
                                                  GList                       *selection_metadata,
                                                  gchar                       *entry_text,
                                                  gchar                       *replace_text);
 
-GList* list_has_duplicates                      (NautilusBatchRename         *dialog,
-                                                 NautilusDirectory           *model,
-                                                 GList                       *names,
-                                                 GList                       *selection,
-                                                 GList                       *parents_list,
-                                                 gboolean                     same_parent,
-                                                 GCancellable                *cancellable);
+GList* file_names_list_has_duplicates                      (NautilusBatchRename         *dialog,
+                                                            NautilusDirectory           *model,
+                                                            GList                       *names,
+                                                            GList                       *selection,
+                                                            GList                       *parents_list,
+                                                            GCancellable                *cancellable);
 
 GList* nautilus_batch_rename_sort               (GList                       *selection,
                                                  SortingMode                  mode,
-                                                 GHashTable                  *create_date);
+                                                 GHashTable                  *creation_date_table);
 
 gint compare_files_by_last_modified             (gconstpointer a,
                                                  gconstpointer b);
@@ -49,9 +48,11 @@ gboolean selection_has_single_parent            (GList *selection);
 
 void string_free                                (gpointer mem);
 
+void conflict_data_free                         (gpointer mem);
+
 GList* distinct_file_parents                    (GList *selection);
 
-gboolean file_name_changed                      (GList        *selection,
+gboolean file_name_conflicts_with_results       (GList        *selection,
                                                  GList        *new_names,
                                                  GString      *old_name,
                                                  gchar        *parent_uri);

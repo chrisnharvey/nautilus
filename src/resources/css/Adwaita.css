@@ -170,12 +170,14 @@
 searchbar { border-top: 1px solid @borders; }
 .searchbar-container { margin-top: -1px; }
 
+@define-color conflict_bg #fef6b6;
+
 .conflict-row {
-    background: #ffd27f;
+    background: @conflict_bg;
 }
 
 .conflict-row:hover {
-    background: #ffc966;
+    background-color: shade(@conflict_bg, 0.9);
 }
 
 .conflict-row:selected {

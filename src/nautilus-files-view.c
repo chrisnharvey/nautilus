@@ -29,7 +29,7 @@
 
 #include "nautilus-application.h"
 #include "nautilus-batch-rename.h"
- #include "nautilus-batch-rename-utilities.h"
+#include "nautilus-batch-rename-utilities.h"
 #include "nautilus-error-reporting.h"
 #include "nautilus-floating-bar.h"
 #include "nautilus-list-view.h"
@@ -1800,20 +1800,6 @@ file_name_widget_entry_on_changed (gpointer user_data)
                 nautilus_file_unref (existing_file);
 
         g_free (name);
-}
-
-gboolean
-file_with_name_exists (NautilusFilesView *view,
-                       gchar             *name)
-{
-        NautilusFile *existing_file;
-
-        existing_file = nautilus_directory_get_file_by_name (view->details->model, name);
-
-        if (existing_file == NULL)
-                return FALSE;
-
-        return TRUE;
 }
 
 static void
@@ -3944,6 +3930,7 @@ done_loading_callback (NautilusDirectory *directory,
                  */
                 unschedule_display_of_pending_files (view);
                 schedule_timeout_display_of_pending_files (view, UPDATE_INTERVAL_MIN);
+
                 remove_loading_floating_bar (view);
         }
         nautilus_profile_end (NULL);
@@ -5527,7 +5514,16 @@ real_action_rename (NautilusFilesView *view,
                         if (have_bulk_rename_tool ()) {
                                 invoke_external_bulk_rename_utility (view, selection);
                         } else {
-                                dialog = nautilus_batch_rename_new (nautilus_files_view_get_selection (view),
+                                GdkCursor *cursor;
+                                GdkDisplay *display;
+
+                                display = gtk_widget_get_display (GTK_WIDGET (nautilus_files_view_get_window (view)));
+                                cursor = gdk_cursor_new_from_name (display, "progress");
+                                gdk_window_set_cursor (gtk_widget_get_window (GTK_WIDGET (nautilus_files_view_get_window (view))),
+                                                       cursor);
+                                g_object_unref (cursor);
+
+                                dialog = nautilus_batch_rename_new (nautilus_files_view_get_selection (NAUTILUS_VIEW (view)),
                                                                     nautilus_files_view_get_model (view),
                                                                     nautilus_files_view_get_window (view));
 

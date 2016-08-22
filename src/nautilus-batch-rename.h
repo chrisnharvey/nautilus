@@ -9,6 +9,18 @@
 
 G_BEGIN_DECLS
 
+#define ORIGINAL_FILE_NAME "[Original file name]"
+#define NUMBERING "[1, 2, 3]"
+#define NUMBERING0 "[01, 02, 03]"
+#define NUMBERING00 "[001, 002, 003]"
+#define CAMERA_MODEL "[Camera model]"
+#define CREATION_DATE "[Creation date]"
+#define SEASON_NUMBER "[Season number]"
+#define EPISODE_NUMBER "[Episode number]"
+#define TRACK_NUMBER "[Track number]"
+#define ARTIST_NAME "[Artist name]"
+#define TITLE "[Title]"
+
 typedef enum {
         NAUTILUS_BATCH_RENAME_APPEND = 0,
         NAUTILUS_BATCH_RENAME_PREPEND = 1,
@@ -25,40 +37,47 @@ typedef enum {
         LAST_CREATED = 5,
 } SortingMode;
 
+typedef struct 
+{
+        gchar *name;
+        gint index;
+} ConflictData;
+
 typedef struct {
-    GString *file_name;
+        GString *file_name;
 
-    /* Photo */
-    GString *creation_date;
-    GString *equipment;
+        /* Photo */
+        GString *creation_date;
+        GString *equipment;
 
-    /* Video */
-    GString *season;
-    GString *episode_nr;
+        /* Video */
+        GString *season;
+        GString *episode_number;
 
-    /* Music */
-    GString *track_nr;
-    GString *artist_name;
+        /* Music */
+        GString *track_number;
+        GString *artist_name;
+        GString *title;
 } FileMetadata;
 
 #define NAUTILUS_TYPE_BATCH_RENAME (nautilus_batch_rename_get_type())
 
 G_DECLARE_FINAL_TYPE (NautilusBatchRename, nautilus_batch_rename, NAUTILUS, BATCH_RENAME, GtkDialog);
 
-GtkWidget*      nautilus_batch_rename_new       (GList                  *selection,
-                                                 NautilusDirectory      *model,
-                                                 NautilusWindow         *window);
+GtkWidget*      nautilus_batch_rename_new                             (GList                  *selection,
+                                                                       NautilusDirectory      *directory,
+                                                                       NautilusWindow         *window);
 
-void            query_finished                  (NautilusBatchRename    *dialog,
-                                                 GHashTable             *hash_table,
-                                                 GList                  *selection_metadata);
+void            nautilus_batch_rename_query_finished                  (NautilusBatchRename    *dialog,
+                                                                       GHashTable             *hash_table,
+                                                                       GList                  *selection_metadata);
 
-void            check_conflict_for_file         (NautilusBatchRename    *dialog,
-                                                 NautilusDirectory      *directory,
-                                                 GList                  *files);
+void            check_conflict_for_file                               (NautilusBatchRename    *dialog,
+                                                                       NautilusDirectory      *directory,
+                                                                       GList                  *files);
 
-gint            compare_int                     (gconstpointer a,
-                                                 gconstpointer b);
+gint            compare_int                                           (gconstpointer           a,
+                                                                       gconstpointer           b);
 
 G_END_DECLS
 
