@@ -28,7 +28,7 @@
 #include "nautilus-files-view.h"
 
 #include "nautilus-application.h"
-#include "nautilus-batch-rename.h"
+#include "nautilus-batch-rename-dialog.h"
 #include "nautilus-batch-rename-utilities.h"
 #include "nautilus-error-reporting.h"
 #include "nautilus-floating-bar.h"
@@ -5523,9 +5523,9 @@ real_action_rename (NautilusFilesView *view,
                                                        cursor);
                                 g_object_unref (cursor);
 
-                                dialog = nautilus_batch_rename_new (nautilus_files_view_get_selection (NAUTILUS_VIEW (view)),
-                                                                    nautilus_files_view_get_model (view),
-                                                                    nautilus_files_view_get_window (view));
+                                dialog = nautilus_batch_rename_dialog_new (nautilus_files_view_get_selection (NAUTILUS_VIEW (view)),
+                                                                           nautilus_files_view_get_model (view),
+                                                                           nautilus_files_view_get_window (view));
 
                                 gtk_widget_show (GTK_WIDGET (dialog));
                         }

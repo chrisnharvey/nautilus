@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-  <template class="NautilusBatchRename" parent="GtkDialog">
+  <template class="NautilusBatchRenameDialog" parent="GtkDialog">
     <property name="resizable">False</property>
     <property name="modal">True</property>
     <property name="window_position">center-on-parent</property>
@@ -55,7 +55,7 @@
                     <property name="receives_default">False</property>
                     <property name="use_underline">True</property>
                     <property name="active">True</property>
-                    <signal name="toggled" handler="batch_rename_mode_changed" swapped="yes" />
+                    <signal name="toggled" handler="batch_rename_dialog_mode_changed" swapped="yes" />
                   </object>
                 </child>
                 <child>
@@ -67,7 +67,7 @@
                     <property name="use_underline">True</property>
                     <property name="active">True</property>
                     <property name="group">format_mode_button</property>
-                    <signal name="toggled" handler="batch_rename_mode_changed" swapped="yes" />
+                    <signal name="toggled" handler="batch_rename_dialog_mode_changed" swapped="yes" />
                   </object>
                 </child>
               </object>

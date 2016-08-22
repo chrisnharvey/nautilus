@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nautilus-batch-rename.h"
+#include "nautilus-batch-rename-dialog.h"
 #include "nautilus-batch-rename-utilities.h"
 #include "nautilus-file.h"
 
@@ -34,8 +34,8 @@ typedef struct {
 } CreateDateElem;
 
 typedef struct {
-        NautilusBatchRename *dialog;
-        GHashTable          *hash_table;
+        NautilusBatchRenameDialog *dialog;
+        GHashTable *hash_table;
 
         GList *selection_metadata;
 
@@ -69,9 +69,9 @@ conflict_data_free (gpointer mem)
 }
 
 static GString*
-batch_rename_replace (gchar *string,
-                      gchar *substring,
-                      gchar *replacement)
+batch_rename_dialog_replace (gchar *string,
+                             gchar *substring,
+                             gchar *replacement)
 {
         GString *new_string;
         gchar **splitted_string;
@@ -113,8 +113,8 @@ batch_rename_replace (gchar *string,
 }
 
 GString*
-batch_rename_replace_label_text (gchar       *string,
-                                 const gchar *substring)
+batch_rename_dialog_replace_label_text (gchar       *string,
+                                        const gchar *substring)
 {
         GString *new_string;
         gchar **splitted_string;
@@ -215,10 +215,10 @@ get_metadata (GList *selection_metadata,
 }
 
 static GString*
-batch_rename_format (NautilusFile *file,
-                     GList        *tags_list,
-                     GList        *selection_metadata,
-                     gint          count)
+batch_rename_dialog_format (NautilusFile *file,
+                            GList        *tags_list,
+                            GList        *selection_metadata,
+                            gint          count)
 {
         GDateTime *datetime;
         GList *l;
@@ -305,7 +305,7 @@ batch_rename_format (NautilusFile *file,
                                 date = g_date_time_format (datetime, "%x");
 
                                 if (strstr (date, "/") != NULL) {
-                                        create_date = batch_rename_replace (date, "/", "-");
+                                        create_date = batch_rename_dialog_replace (date, "/", "-");
                                         new_name = g_string_append (new_name, create_date->str);
 
                                         g_string_free (create_date, TRUE);
@@ -380,12 +380,12 @@ batch_rename_format (NautilusFile *file,
 }
 
 GList*
-batch_rename_get_new_names_list (NautilusBatchRenameMode mode,
-                                 GList                  *selection,
-                                 GList                  *tags_list,
-                                 GList                  *selection_metadata,
-                                 gchar                  *entry_text,
-                                 gchar                  *replace_text)
+batch_rename_dialog_get_new_names_list (NautilusBatchRenameDialogMode mode,
+                                        GList                        *selection,
+                                        GList                        *tags_list,
+                                        GList                        *selection_metadata,
+                                        gchar                        *entry_text,
+                                        gchar                        *replace_text)
 {
         GList *l;
         GList *result;
@@ -407,16 +407,16 @@ batch_rename_get_new_names_list (NautilusBatchRenameMode mode,
                 g_string_append (file_name, name);
 
                 /* get the new name here and add it to the list*/
-                if (mode == NAUTILUS_BATCH_RENAME_FORMAT) {
-                        new_name = batch_rename_format (file,
+                if (mode == NAUTILUS_BATCH_RENAME_DIALOG_FORMAT) {
+                        new_name = batch_rename_dialog_format (file,
                                                         tags_list,
                                                         selection_metadata,
                                                         count++);
                         result = g_list_prepend (result, new_name);
                 }
 
-                if (mode == NAUTILUS_BATCH_RENAME_REPLACE) {
-                        new_name = batch_rename_replace (file_name->str,
+                if (mode == NAUTILUS_BATCH_RENAME_DIALOG_REPLACE) {
+                        new_name = batch_rename_dialog_replace (file_name->str,
                                                          entry_text,
                                                          replace_text);
                         result = g_list_prepend (result, new_name);
@@ -559,9 +559,9 @@ compare_files_by_last_created (gconstpointer a,
 }
 
 GList*
-nautilus_batch_rename_sort (GList       *selection,
-                            SortingMode  mode,
-                            GHashTable  *creation_date_table)
+nautilus_batch_rename_dialog_sort (GList       *selection,
+                                   SortingMode  mode,
+                                   GHashTable  *creation_date_table)
 {
         GList *l,*l2;
         NautilusFile *file;
@@ -663,7 +663,7 @@ cursor_callback (GObject      *object,
                 g_clear_error (&error);
                 g_clear_object (&cursor);
 
-                nautilus_batch_rename_query_finished (data->dialog, data->hash_table, data->selection_metadata);
+                nautilus_batch_rename_dialog_query_finished (data->dialog, data->hash_table, data->selection_metadata);
 
                 return;
         }
@@ -822,9 +822,9 @@ cursor_callback (GObject      *object,
 }
 
 static void
-batch_rename_query_callback (GObject      *object,
-                             GAsyncResult *result,
-                             gpointer      user_data)
+batch_rename_dialog_query_callback (GObject      *object,
+                                    GAsyncResult *result,
+                                    gpointer      user_data)
 {
         TrackerSparqlConnection *connection;
         TrackerSparqlCursor *cursor;
@@ -843,17 +843,17 @@ batch_rename_query_callback (GObject      *object,
         if (error != NULL) {
                 g_error_free (error);
 
-                nautilus_batch_rename_query_finished (data->dialog,
-                                                      data->hash_table,
-                                                      data->selection_metadata);
+                nautilus_batch_rename_dialog_query_finished (data->dialog,
+                                                             data->hash_table,
+                                                             data->selection_metadata);
         } else {
                 cursor_next (data, cursor);
         }
 }
 
 void
-check_metadata_for_selection (NautilusBatchRename *dialog,
-                              GList               *selection)
+check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
+                              GList                     *selection)
 {
         TrackerSparqlConnection *connection;
         GString *query;
@@ -943,7 +943,7 @@ check_metadata_for_selection (NautilusBatchRename *dialog,
         tracker_sparql_connection_query_async (connection,
                                                query->str,
                                                NULL,
-                                               batch_rename_query_callback,
+                                               batch_rename_dialog_query_callback,
                                                data);
 
         g_object_unref (connection);
