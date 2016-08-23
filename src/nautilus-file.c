@@ -7078,13 +7078,17 @@ static const gchar * const remote_types[] = {
 gboolean
 nautilus_file_is_remote (NautilusFile *file)
 {
+        gboolean is_remote;
         char *filesystem_type;
 
         g_assert (NAUTILUS_IS_FILE (file));
 
         filesystem_type = nautilus_file_get_filesystem_type (file);
+        is_remote = filesystem_type != NULL && g_strv_contains (remote_types, filesystem_type);
 
-        return filesystem_type != NULL && g_strv_contains (remote_types, filesystem_type);
+        g_free (filesystem_type);
+
+        return is_remote;
 }
 
 /**
