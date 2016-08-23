@@ -365,6 +365,7 @@ load_callback (GObject *source_object,
 	op_processed_cb (self);
 
 	g_strfreev (lines);
+        g_free (contents);
 }
 
 static void
