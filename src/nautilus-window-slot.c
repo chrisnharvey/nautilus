@@ -988,7 +988,7 @@ begin_location_change (NautilusWindowSlot         *self,
 	priv->location_change_type = type;
 	priv->location_change_distance = distance;
 	priv->tried_mount = FALSE;
-	priv->pending_selection = nautilus_file_list_copy (new_selection);
+	priv->pending_selection = new_selection;
 
 	priv->pending_scroll_to = g_strdup (scroll_pos);
 
