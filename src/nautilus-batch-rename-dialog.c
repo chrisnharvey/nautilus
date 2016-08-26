@@ -103,6 +103,12 @@ struct _NautilusBatchRenameDialog
 
         gint                             row_height;
         gboolean                         rename_clicked;
+
+        /* the numbers of characters from the name entry */
+        gint                             name_entry_characters;
+        gboolean                         tags_deleted;
+        gint                             cursor_position;
+        gboolean                         use_manual_cursor_position;
 };
 
 typedef struct
@@ -111,6 +117,9 @@ typedef struct
         gboolean set;
         gint position;
         gint original_position;
+        gint new_position;
+        /* if the tag was just added, then we shouldn't update it's position */
+        gboolean just_added;
 } TagData;
 
 static void     update_display_text     (NautilusBatchRenameDialog *dialog);
@@ -191,10 +200,16 @@ add_original_file_name_tag (GSimpleAction       *action,
 {
         NautilusBatchRenameDialog *dialog;
         gint cursor_position;
+        TagData *tag_data;
 
         dialog = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
 
         g_object_get (dialog->name_entry, "cursor-position", &cursor_position, NULL);
+
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, ORIGINAL_FILE_NAME);
+        tag_data->set = TRUE;
+        tag_data->just_added = TRUE;
+        tag_data->position = cursor_position;
 
         gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                   ORIGINAL_FILE_NAME,
@@ -237,7 +252,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "creation-date")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, CREATION_DATE);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           CREATION_DATE,
@@ -250,7 +267,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "equipment")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, CAMERA_MODEL);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           CAMERA_MODEL,
@@ -263,7 +282,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "season")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, SEASON_NUMBER);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           SEASON_NUMBER,
@@ -276,7 +297,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "episode")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, EPISODE_NUMBER);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           EPISODE_NUMBER,
@@ -289,7 +312,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "track")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, TRACK_NUMBER);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           TRACK_NUMBER,
@@ -302,7 +327,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "artist")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, ARTIST_NAME);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           ARTIST_NAME,
@@ -315,7 +342,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "title")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, TITLE);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           TITLE,
@@ -328,7 +357,9 @@ add_metadata_tag (GSimpleAction       *action,
         if (g_strrstr (action_name, "album")) {
                 tag_data = g_hash_table_lookup (dialog->tag_info_table, ALBUM_NAME);
                 tag_data->available = TRUE;
-                tag_data->set = FALSE;
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
 
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           ALBUM_NAME,
@@ -350,6 +381,7 @@ add_numbering_tag (GSimpleAction       *action,
         const gchar *action_name;
         gint cursor_position;
         GAction *add_numbering_action;
+        TagData *tag_data;
 
         dialog = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
 
@@ -357,6 +389,11 @@ add_numbering_tag (GSimpleAction       *action,
         g_object_get (dialog->name_entry, "cursor-position", &cursor_position, NULL);
 
         if (g_strrstr (action_name, "zero")) {
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
+
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           NUMBERING,
                                           g_utf8_strlen (NUMBERING, -1),
@@ -365,6 +402,11 @@ add_numbering_tag (GSimpleAction       *action,
         }
 
         if (g_strrstr (action_name, "one")) {
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
+
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           NUMBERING0,
                                           g_utf8_strlen (NUMBERING0, -1),
@@ -373,6 +415,11 @@ add_numbering_tag (GSimpleAction       *action,
         }
 
         if (g_strrstr (action_name, "two")) {
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING00);
+                tag_data->set = TRUE;
+                tag_data->just_added = TRUE;
+                tag_data->position = cursor_position;
+
                 gtk_editable_insert_text (GTK_EDITABLE (dialog->name_entry),
                                           NUMBERING00,
                                           g_utf8_strlen (NUMBERING00, -1),
@@ -1575,172 +1622,138 @@ file_names_list_has_duplicates_async (NautilusBatchRenameDialog *dialog,
 }
 
 static void
-check_if_tag_is_used (NautilusBatchRenameDialog *dialog,
-                      gchar                     *tag_name,
-                      gchar                     *action_name)
-{
-        GString *entry_text;
-        GAction *action;
-        TagData *tag_data;
-
-        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, tag_name);
-
-        if (tag_data->set == FALSE && g_strrstr (entry_text->str, tag_name)) {
-                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                     action_name);
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), FALSE);
-        }
-
-        if (g_strrstr (entry_text->str, tag_name) == NULL) {
-                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                     action_name);
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
-
-                tag_data->set = FALSE;
-        }
-
-        if (g_strrstr (entry_text->str, tag_name)) {
-                tag_data->position = g_utf8_pointer_to_offset(entry_text->str,
-                                                              g_strrstr (entry_text->str, tag_name));
-                tag_data->set = TRUE;
-        }
-
-        g_string_free (entry_text, TRUE);
-}
-
-static void
-check_numbering_tags (NautilusBatchRenameDialog *dialog)
-{
-        GString *entry_text;
-        GAction *add_numbering_action;
-        TagData *tag_data;
-        TagData *tag_data0;
-        TagData *tag_data00;
-
-        entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
-
-        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
-        tag_data0 = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
-        tag_data00 = g_hash_table_lookup (dialog->tag_info_table, NUMBERING00);
-
-        if ((g_strrstr (entry_text->str, NUMBERING) ||
-            g_strrstr (entry_text->str, NUMBERING0) ||
-            g_strrstr (entry_text->str, NUMBERING00)) &&
-            (!tag_data->set && !tag_data0->set && !tag_data00->set)) {
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-zero");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
-
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-one");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
-
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-two");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), FALSE);
-
-                if (g_strrstr (entry_text->str, NUMBERING))
-                        tag_data->set = TRUE;
-                if (g_strrstr (entry_text->str, NUMBERING0))
-                        tag_data0->set = TRUE;
-                if (g_strrstr (entry_text->str, NUMBERING00))
-                        tag_data00->set = TRUE;
-        }
-
-        if (g_strrstr (entry_text->str, NUMBERING) == NULL &&
-            g_strrstr (entry_text->str, NUMBERING0) == NULL &&
-            g_strrstr (entry_text->str, NUMBERING00) == NULL &&
-            (tag_data->set || tag_data0->set || tag_data00->set)) {
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-zero");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
-
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-one");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
-
-                add_numbering_action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
-                                                      "add-numbering-tag-two");
-                g_simple_action_set_enabled (G_SIMPLE_ACTION (add_numbering_action), TRUE);
-
-                tag_data->set = FALSE;
-                tag_data0->set = FALSE;
-                tag_data00->set = FALSE;
-        }
-
-        if (g_strrstr (entry_text->str, NUMBERING)) {
-                tag_data->position = g_utf8_pointer_to_offset(entry_text->str,
-                                                              g_strrstr (entry_text->str, NUMBERING));
-
-        }
-
-        if (g_strrstr (entry_text->str, NUMBERING0)) {
-                tag_data0->position = g_utf8_pointer_to_offset(entry_text->str,
-                                                              g_strrstr (entry_text->str, NUMBERING0));
-        }
-        if (g_strrstr (entry_text->str, NUMBERING00)) {
-                tag_data00->position = g_utf8_pointer_to_offset(entry_text->str,
-                                                              g_strrstr (entry_text->str, NUMBERING00));
-        }
-        g_string_free (entry_text, TRUE);
-}
-
-static void
 update_tags (NautilusBatchRenameDialog *dialog)
 {
         TagData *tag_data;
+        const gchar *entry_text;
+        gint character_difference;
+        gint cursor_position;
 
-        check_if_tag_is_used (dialog,
-                              ORIGINAL_FILE_NAME,
-                              "add-original-file-name-tag");
+        entry_text = gtk_entry_get_text (GTK_ENTRY (dialog->name_entry));
+
+        if (dialog->use_manual_cursor_position) {
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry),
+                                                   dialog->cursor_position);      
+        }
+
+        if (dialog->tags_deleted) {
+                dialog->tags_deleted = FALSE;
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry),
+                                                   g_utf8_strlen (entry_text, -1));
+        }
+
+        g_object_get (dialog->name_entry, "cursor-position", &cursor_position, NULL);
+
+        character_difference = g_utf8_strlen (entry_text, -1) - dialog->name_entry_characters;
+        dialog->name_entry_characters = g_utf8_strlen (entry_text, -1);
+
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, ORIGINAL_FILE_NAME);
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, CREATION_DATE);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      CREATION_DATE,
-                                      "add-creation-date-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
         tag_data = g_hash_table_lookup (dialog->tag_info_table, CAMERA_MODEL);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      CAMERA_MODEL,
-                                      "add-equipment-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
         tag_data = g_hash_table_lookup (dialog->tag_info_table, SEASON_NUMBER);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      SEASON_NUMBER,
-                                      "add-season-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
         tag_data = g_hash_table_lookup (dialog->tag_info_table, EPISODE_NUMBER);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      EPISODE_NUMBER,
-                                      "add-episode-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
         tag_data = g_hash_table_lookup (dialog->tag_info_table, TRACK_NUMBER);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      TRACK_NUMBER,
-                                      "add-track-number-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, ARTIST_NAME);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      ARTIST_NAME,
-                                      "add-artist-name-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, TITLE);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      TITLE,
-                                      "add-title-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, ALBUM_NAME);
-        if (tag_data->available)
-                check_if_tag_is_used (dialog,
-                                      ALBUM_NAME,
-                                      "add-album-name-tag");
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 
-        check_numbering_tags (dialog);
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
+
+        tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING00);
+        if (tag_data->just_added) {
+                tag_data->just_added = FALSE;
+        } else {
+                if (tag_data->set && cursor_position <= tag_data->position) {
+                     tag_data->position += character_difference;
+                }
+        }
 }
 
 static gboolean
@@ -1831,10 +1844,10 @@ update_display_text (NautilusBatchRenameDialog *dialog)
         if (have_unallowed_character (dialog))
                 return;
 
+        update_tags (dialog);
+
         if (dialog->new_names != NULL)
                 g_list_free_full (dialog->new_names, string_free);
-
-        update_tags (dialog);
 
         if (!tag_data->set && !tag_data0->set && !tag_data00->set) {
                 gtk_label_set_label (GTK_LABEL (dialog->numbering_label), "");
@@ -2132,6 +2145,7 @@ file_names_widget_on_activate (NautilusBatchRenameDialog *dialog)
 static gboolean
 remove_tag (NautilusBatchRenameDialog *dialog,
             gchar                     *tag_name,
+            gchar                     *action_name,
             gchar                     *keyval_name,
             gboolean                   is_modifier)
 {
@@ -2140,6 +2154,7 @@ remove_tag (NautilusBatchRenameDialog *dialog,
         GString *new_entry_text;
         GString *entry_text;
         gboolean delete_tag;
+        GAction *action;
 
         delete_tag = FALSE;
 
@@ -2179,6 +2194,10 @@ remove_tag (NautilusBatchRenameDialog *dialog,
         }
 
         if (delete_tag) {
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                     action_name);
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
                 new_entry_text = g_string_new ("");
                 new_entry_text = g_string_append_len (new_entry_text,
                                                       entry_text->str,
@@ -2187,10 +2206,12 @@ remove_tag (NautilusBatchRenameDialog *dialog,
                                                   g_utf8_offset_to_pointer (entry_text->str,
                                                                             tag_data->position + g_utf8_strlen (tag_name, -1)));
 
+                tag_data->set = FALSE;
+                dialog->cursor_position = tag_data->position;
+                dialog->use_manual_cursor_position = TRUE;
                 gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
                 gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), tag_data->position);
-
-                tag_data->set = FALSE;
+                dialog->use_manual_cursor_position = FALSE;
 
                 g_string_free (new_entry_text, TRUE);
                 g_string_free (entry_text, TRUE);
@@ -2204,25 +2225,34 @@ remove_tag (NautilusBatchRenameDialog *dialog,
 static GString*
 remove_tag_selection (NautilusBatchRenameDialog *dialog,
                       GString                   *old_entry_text,
+                      gchar                     *action_name,
                       gchar                     *tag_name,
                       gint                       start,
                       gint                       end)
 {
         TagData *tag_data;
+        GAction *action;
         GString *new_entry_text;
 
         new_entry_text = NULL;
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, tag_name);
-        if (tag_data->set && tag_data->original_position <= end &&
-            tag_data->original_position + g_utf8_strlen (tag_name, -1) >= start) {
+
+        if (tag_data->set && tag_data->original_position < end &&
+            tag_data->original_position + g_utf8_strlen (tag_name, -1) > start) {
                 new_entry_text = g_string_new ("");
                 new_entry_text = g_string_append_len (new_entry_text,
                                                       old_entry_text->str,
-                                                      tag_data->position);
+                                                      tag_data->new_position);
                 new_entry_text = g_string_append (new_entry_text,
                                                   g_utf8_offset_to_pointer (old_entry_text->str,
-                                                                            tag_data->position + g_utf8_strlen (tag_name, -1)));
+                                                                            tag_data->new_position + g_utf8_strlen (tag_name, -1)));
+
+                tag_data->set = FALSE;
+
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                     action_name);
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
         }
 
         if (new_entry_text == NULL)
@@ -2239,10 +2269,10 @@ update_tag_position (NautilusBatchRenameDialog *dialog,
 
         tag_data = g_hash_table_lookup (dialog->tag_info_table, tag_name);
 
-        if (g_strrstr (new_entry_text->str, tag_name)) {
+        if (tag_data->set) {
                 tag_data->original_position = tag_data->position;
-                tag_data->position = g_utf8_pointer_to_offset(new_entry_text->str,
-                                                              g_strrstr (new_entry_text->str, tag_name));
+                tag_data->new_position = g_utf8_pointer_to_offset(new_entry_text->str,
+                                                                  g_strrstr (new_entry_text->str, tag_name));
         }
 }
 
@@ -2260,6 +2290,9 @@ on_key_press_event (GtkWidget    *widget,
         gint start;
         gint end;
         gboolean tag_removed;
+        TagData *tag_data;
+        gint minimum_tag_position;
+        GAction *action;
 
         gdk_event = (GdkEvent *) event;
 
@@ -2284,114 +2317,377 @@ on_key_press_event (GtkWidget    *widget,
             g_strcmp0 (keyval_name, "Tab") != 0))) {
                 old_entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
 
-                update_tag_position (dialog, ORIGINAL_FILE_NAME, old_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, ORIGINAL_FILE_NAME, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                minimum_tag_position = G_MAXINT;
+                tag_removed = FALSE;
 
-                update_tag_position (dialog, NUMBERING, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, NUMBERING, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, ORIGINAL_FILE_NAME);
+                if (tag_data->set) {
+                        update_tag_position (dialog, ORIGINAL_FILE_NAME, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-original-file-name-tag",
+                                                               ORIGINAL_FILE_NAME,
+                                                               start,
+                                                               end);
 
-                update_tag_position (dialog, NUMBERING0, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, NUMBERING0, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
 
-                update_tag_position (dialog, NUMBERING00, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, NUMBERING00, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
 
-                update_tag_position (dialog, CREATION_DATE, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, CREATION_DATE, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, CREATION_DATE);
+                if (tag_data->set) {
+                        update_tag_position (dialog, CREATION_DATE, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-creation-date-tag",
+                                                               CREATION_DATE,
+                                                               start,
+                                                               end);
 
-                update_tag_position (dialog, CAMERA_MODEL, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, CAMERA_MODEL, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
 
-                update_tag_position (dialog, TRACK_NUMBER, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, TRACK_NUMBER, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                                tag_removed = TRUE;
+                        }
 
-                update_tag_position (dialog, SEASON_NUMBER, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, SEASON_NUMBER, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
 
-                update_tag_position (dialog, EPISODE_NUMBER, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, EPISODE_NUMBER, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
+                if (tag_data->set) {
+                        update_tag_position (dialog, NUMBERING, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-numbering-tag-zero",
+                                                               NUMBERING,
+                                                               start,
+                                                               end);
 
-                update_tag_position (dialog, ARTIST_NAME, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, ARTIST_NAME, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-one");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
 
-                update_tag_position (dialog, TITLE, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, TITLE, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-two");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
 
-                update_tag_position (dialog, ALBUM_NAME, new_entry_text);
-                new_entry_text = remove_tag_selection (dialog, old_entry_text, ALBUM_NAME, start, end);
-                g_string_free (old_entry_text, TRUE);
-                old_entry_text = new_entry_text;
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
 
-                gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
-                g_string_free (new_entry_text, TRUE);
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
 
-                if (!gdk_event->key.is_modifier &&
-                    g_strcmp0(keyval_name, "Left") != 0 &&
-                    g_strcmp0(keyval_name, "Right") != 0 &&
-                    g_strcmp0(keyval_name, "Return") != 0 &&
-                    g_strcmp0 (keyval_name, "Escape") != 0)
-                        return GDK_EVENT_PROPAGATE;
-                return TRUE;
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
+                if (tag_data->set) {
+                        update_tag_position (dialog, NUMBERING0, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-numbering-tag-one",
+                                                               NUMBERING0,
+                                                               start,
+                                                               end);
+
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-zero");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-two");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING00);
+                if (tag_data->set) {
+                        update_tag_position (dialog, NUMBERING00, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-numbering-tag-two",
+                                                               NUMBERING0,
+                                                               start,
+                                                               end);
+
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-one");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                        action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                           "add-numbering-tag-zero");
+                        g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, CAMERA_MODEL);
+                if (tag_data->set) {
+                        update_tag_position (dialog, CAMERA_MODEL, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-equipment-tag",
+                                                               CAMERA_MODEL,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, TRACK_NUMBER);
+                if (tag_data->set) {
+                        update_tag_position (dialog, TRACK_NUMBER, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-track-number-tag",
+                                                               TRACK_NUMBER,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, SEASON_NUMBER);
+                if (tag_data->set) {
+                        update_tag_position (dialog, SEASON_NUMBER, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-season-tag",
+                                                               SEASON_NUMBER,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, EPISODE_NUMBER);
+                if (tag_data->set) {
+                        update_tag_position (dialog, EPISODE_NUMBER, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-episode-tag",
+                                                               EPISODE_NUMBER,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, ARTIST_NAME);
+                if (tag_data->set) {
+                        update_tag_position (dialog, ARTIST_NAME, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-artist-name-tag",
+                                                               ARTIST_NAME,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, TITLE);
+                if (tag_data->set) {
+                        update_tag_position (dialog, TITLE, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-title-tag",
+                                                               TITLE,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                tag_data = g_hash_table_lookup (dialog->tag_info_table, ALBUM_NAME);
+                if (tag_data->set) {
+                        update_tag_position (dialog, ALBUM_NAME, old_entry_text);
+                        new_entry_text = remove_tag_selection (dialog,
+                                                               old_entry_text,
+                                                               "add-album-name-tag",
+                                                               ALBUM_NAME,
+                                                               start,
+                                                               end);
+
+                        if (!g_string_equal (new_entry_text, old_entry_text)) {
+                                if (tag_data->position < minimum_tag_position)
+                                        minimum_tag_position = tag_data->position;
+
+                                tag_removed = TRUE;
+                        }
+                        g_string_free (old_entry_text, TRUE);
+                        old_entry_text = new_entry_text;
+                }
+
+                if (minimum_tag_position != G_MAXINT) {
+                        dialog->use_manual_cursor_position = TRUE;
+                        dialog->cursor_position = minimum_tag_position;
+
+                        gtk_entry_set_text (GTK_ENTRY (dialog->name_entry), new_entry_text->str);
+                        gtk_editable_set_position (GTK_EDITABLE (dialog->name_entry), minimum_tag_position);
+
+                        dialog->use_manual_cursor_position = FALSE;
+
+                        g_string_free (new_entry_text, TRUE);
+                }
+
+                if ((g_strcmp0 (keyval_name, "Delete") == 0 || g_strcmp0 (keyval_name, "BackSpace") == 0) &&
+                    tag_removed)
+                        return TRUE;
+
+                return GDK_EVENT_PROPAGATE;
         }
 
         tag_removed = FALSE;
 
-        if (remove_tag (dialog, ORIGINAL_FILE_NAME, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        ORIGINAL_FILE_NAME,
+                        "add-original-file-name-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, NUMBERING, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        CREATION_DATE,
+                        "add-creation-date-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, NUMBERING0, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        NUMBERING,
+                        "add-numbering-tag-zero",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, NUMBERING00, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        NUMBERING0,
+                        "add-numbering-tag-one",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, CAMERA_MODEL, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        NUMBERING00,
+                        "add-numbering-tag-two",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, CREATION_DATE, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        CAMERA_MODEL,
+                        "add-equipment-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, SEASON_NUMBER, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        SEASON_NUMBER,
+                        "add-season-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, EPISODE_NUMBER, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        EPISODE_NUMBER,
+                        "add-episode-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, TRACK_NUMBER, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        TRACK_NUMBER,
+                        "add-track-number-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, ARTIST_NAME, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        ARTIST_NAME,
+                        "add-artist-name-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, TITLE, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        TITLE,
+                        "add-title-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
-        if (remove_tag (dialog, ALBUM_NAME, keyval_name, gdk_event->key.is_modifier))
+        if (remove_tag (dialog,
+                        ALBUM_NAME,
+                        "add-album-name-tag",
+                        keyval_name,
+                        gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (tag_removed) {
@@ -2675,6 +2971,7 @@ nautilus_batch_rename_dialog_init (NautilusBatchRenameDialog *self)
         g_hash_table_insert (self->tag_info_table, g_strdup (ALBUM_NAME), tag_data);
 
         gtk_entry_set_text (GTK_ENTRY (self->name_entry),ORIGINAL_FILE_NAME);
+        self->name_entry_characters = g_utf8_strlen (ORIGINAL_FILE_NAME, -1);
 
         self->row_height = -1;
 
