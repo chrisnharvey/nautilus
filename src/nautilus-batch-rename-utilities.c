@@ -46,11 +46,12 @@ typedef struct {
         gboolean have_track_number;
         gboolean have_artist_name;
         gboolean have_title;
+        gboolean have_album_name;
 } QueryData;
 
-static void cursor_callback (GObject      *object,
-                             GAsyncResult *result,
-                             gpointer      user_data);
+static void on_cursor_callback (GObject      *object,
+                                GAsyncResult *result,
+                                gpointer      user_data);
 
 void
 string_free (gpointer mem)
@@ -62,10 +63,10 @@ string_free (gpointer mem)
 void
 conflict_data_free (gpointer mem)
 {
-        ConflictData *data = mem;
+        ConflictData *conflict_data = mem;
 
-        g_free (data->name);
-        g_free (data);
+        g_free (conflict_data->name);
+        g_free (conflict_data);
 }
 
 static GString*
@@ -113,44 +114,44 @@ batch_rename_dialog_replace (gchar *string,
 }
 
 GString*
-batch_rename_dialog_replace_label_text (gchar       *string,
-                                        const gchar *substring)
+batch_rename_replace_label_text (gchar       *label,
+                                 const gchar *substring)
 {
-        GString *new_string;
+        GString *new_label;
         gchar **splitted_string;
         gchar *token;
         gint i, n_splits;
 
-        new_string = g_string_new ("");
+        new_label = g_string_new ("");
 
         if (substring == NULL || g_strcmp0 (substring, "") == 0) {
-                token = g_markup_escape_text (string, strlen (string));
-                new_string = g_string_append (new_string, token);
+                token = g_markup_escape_text (label, g_utf8_strlen (label, -1));
+                new_label = g_string_append (new_label, token);
                 g_free (token);
 
-                return new_string;
+                return new_label;
         }
 
-        splitted_string = g_strsplit (string, substring, -1);
+        splitted_string = g_strsplit (label, substring, -1);
         if (splitted_string == NULL) {
-                token = g_markup_escape_text (string, strlen (string));
-                new_string = g_string_append (new_string, token);
+                token = g_markup_escape_text (label, g_utf8_strlen (label, -1));
+                new_label = g_string_append (new_label, token);
                 g_free (token);
 
-                return new_string;
+                return new_label;
         }
 
         n_splits = g_strv_length (splitted_string);
 
         for (i = 0; i < n_splits; i++) {
                 token = g_markup_escape_text (splitted_string[i], strlen (splitted_string[i]));
-                new_string = g_string_append (new_string, token);
+                new_label = g_string_append (new_label, token);
 
                 g_free (token);
 
                 if (i != n_splits - 1) {
-                        token = g_markup_escape_text (substring, strlen (substring));
-                        g_string_append_printf (new_string,
+                        token = g_markup_escape_text (substring, g_utf8_strlen (substring, -1));
+                        g_string_append_printf (new_label,
                                                 "<span background=\'#f57900\' color='white'>%s</span>",
                                                 token);
 
@@ -160,7 +161,7 @@ batch_rename_dialog_replace_label_text (gchar       *string,
 
         g_strfreev (splitted_string);
 
-        return new_string;
+        return new_label;
 }
 
 static gchar*
@@ -208,6 +209,11 @@ get_metadata (GList *selection_metadata,
                             file_metadata->title != NULL &&
                             file_metadata->title->len != 0)
                                 return file_metadata->title->str;
+
+                        if (g_strcmp0 (metadata, "album_name") == 0 &&
+                            file_metadata->album_name != NULL &&
+                            file_metadata->album_name->len != 0)
+                                return file_metadata->album_name->str;
                 }
         }
 
@@ -365,6 +371,15 @@ batch_rename_dialog_format (NautilusFile *file,
                         }
                 }
 
+                if (!added_tag && g_strcmp0 (tag->str, ALBUM_NAME) == 0) {
+                        metadata = get_metadata (selection_metadata, file_name, "album_name");
+
+                        if (metadata != NULL) {
+                                new_name = g_string_append (new_name, metadata);
+                                added_tag = TRUE;
+                        }
+                }
+
                 if (!added_tag)
                         new_name = g_string_append (new_name, tag->str);
         }
@@ -417,8 +432,8 @@ batch_rename_dialog_get_new_names_list (NautilusBatchRenameDialogMode mode,
 
                 if (mode == NAUTILUS_BATCH_RENAME_DIALOG_REPLACE) {
                         new_name = batch_rename_dialog_replace (file_name->str,
-                                                         entry_text,
-                                                         replace_text);
+                                                                entry_text,
+                                                                replace_text);
                         result = g_list_prepend (result, new_name);
                 }
                 
@@ -472,7 +487,7 @@ file_name_conflicts_with_results (GList        *selection,
         return FALSE;
 }
 
-gint
+static gint
 compare_files_by_name_ascending (gconstpointer a,
                                  gconstpointer b)
 {
@@ -487,7 +502,7 @@ compare_files_by_name_ascending (gconstpointer a,
                                                FALSE, FALSE);
 }
 
-gint
+static gint
 compare_files_by_name_descending (gconstpointer a,
                                   gconstpointer b)
 {
@@ -502,7 +517,7 @@ compare_files_by_name_descending (gconstpointer a,
                                                FALSE, TRUE);
 }
 
-gint
+static gint
 compare_files_by_first_modified (gconstpointer a,
                                  gconstpointer b)
 {
@@ -517,7 +532,7 @@ compare_files_by_first_modified (gconstpointer a,
                                                FALSE, FALSE);
 }
 
-gint
+static gint
 compare_files_by_last_modified (gconstpointer a,
                                 gconstpointer b)
 {
@@ -532,7 +547,7 @@ compare_files_by_last_modified (gconstpointer a,
                                                FALSE, TRUE);
 }
 
-gint
+static gint
 compare_files_by_first_created (gconstpointer a,
                                 gconstpointer b)
 {
@@ -545,7 +560,7 @@ compare_files_by_first_created (gconstpointer a,
         return elem1->position - elem2->position;
 }
 
-gint
+static gint
 compare_files_by_last_created (gconstpointer a,
                                gconstpointer b)
 {
@@ -620,24 +635,24 @@ nautilus_batch_rename_dialog_sort (GList       *selection,
 }
 
 static void
-cursor_next (QueryData           *data,
+cursor_next (QueryData           *query_data,
              TrackerSparqlCursor *cursor)
 {
         tracker_sparql_cursor_next_async (cursor,
                                           NULL,
-                                          cursor_callback,
-                                          data);
+                                          on_cursor_callback,
+                                          query_data);
 }
 
 static void
-cursor_callback (GObject      *object,
-                 GAsyncResult *result,
-                 gpointer      user_data)
+on_cursor_callback (GObject      *object,
+                    GAsyncResult *result,
+                    gpointer      user_data)
 {
         GHashTable *hash_table;
         TrackerSparqlCursor *cursor;
         gboolean success;
-        QueryData *data;
+        QueryData *query_data;
         GError *error;
         GList *l;
         FileMetadata *metadata;
@@ -650,20 +665,23 @@ cursor_callback (GObject      *object,
         const gchar *track_number;
         const gchar *artist_name;
         const gchar *title;
+        const gchar *album_name;
 
         error = NULL;
         metadata = NULL;
 
         cursor = TRACKER_SPARQL_CURSOR (object);
-        data = user_data;
-        hash_table = data->hash_table;
+        query_data = user_data;
+        hash_table = query_data->hash_table;
 
         success = tracker_sparql_cursor_next_finish (cursor, result, &error);
         if (!success) {
                 g_clear_error (&error);
                 g_clear_object (&cursor);
 
-                nautilus_batch_rename_dialog_query_finished (data->dialog, data->hash_table, data->selection_metadata);
+                nautilus_batch_rename_dialog_query_finished (query_data->dialog,
+                                                             query_data->hash_table,
+                                                             query_data->selection_metadata);
 
                 return;
         }
@@ -675,23 +693,24 @@ cursor_callback (GObject      *object,
         track_number = tracker_sparql_cursor_get_string (cursor, 5, NULL);
         artist_name = tracker_sparql_cursor_get_string (cursor, 6, NULL);
         title = tracker_sparql_cursor_get_string (cursor, 7, NULL);
+        album_name = tracker_sparql_cursor_get_string (cursor, 8, NULL);
 
         /* creation date used for sorting criteria */
         if (creation_date == NULL) {
                 if (hash_table != NULL)
                         g_hash_table_destroy (hash_table);
 
-                data->hash_table = NULL;
-                data->have_creation_date = FALSE;
+                query_data->hash_table = NULL;
+                query_data->have_creation_date = FALSE;
         } else {
-                if (data->have_creation_date){
+                if (query_data->have_creation_date){
                         g_hash_table_insert (hash_table,
                         g_strdup (tracker_sparql_cursor_get_string (cursor, 0, NULL)),
                         GINT_TO_POINTER (g_hash_table_size (hash_table)));
                 }
         }
         file_name = tracker_sparql_cursor_get_string (cursor, 0, NULL);
-        for (l = data->selection_metadata; l != NULL; l = l->next) {
+        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                 metadata = l->data;
 
                 if (g_strcmp0 (file_name, metadata->file_name->str) == 0)
@@ -700,11 +719,11 @@ cursor_callback (GObject      *object,
 
         /* Metadata to be used in file name
          * creation date */
-        if (data->have_creation_date) {
+        if (query_data->have_creation_date) {
                 if (creation_date == NULL) {
-                        data->have_creation_date = FALSE;
+                        query_data->have_creation_date = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->creation_date, TRUE);
@@ -717,11 +736,11 @@ cursor_callback (GObject      *object,
         }
 
         /* equipment */
-        if (data->have_equipment) {
+        if (query_data->have_equipment) {
                 if (equipment == NULL) {
-                        data->have_equipment = FALSE;
+                        query_data->have_equipment = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->equipment, TRUE);
@@ -734,11 +753,11 @@ cursor_callback (GObject      *object,
         }
 
         /* season number */
-        if (data->have_season) {
+        if (query_data->have_season) {
                 if (season_number == NULL) {
-                        data->have_season = FALSE;
+                        query_data->have_season = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->season, TRUE);
@@ -751,11 +770,11 @@ cursor_callback (GObject      *object,
         }
 
         /* episode number */
-        if (data->have_episode_number) {
+        if (query_data->have_episode_number) {
                 if (episode_number == NULL) {
-                        data->have_episode_number = FALSE;
+                        query_data->have_episode_number = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->episode_number, TRUE);
@@ -768,10 +787,10 @@ cursor_callback (GObject      *object,
         }
 
         /* track number */
-        if (data->have_track_number) {
+        if (query_data->have_track_number) {
                 if (track_number == NULL) {
-                        data->have_track_number = FALSE;
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        query_data->have_track_number = FALSE;
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->track_number, TRUE);
@@ -784,11 +803,11 @@ cursor_callback (GObject      *object,
         }
 
         /* artist name */
-        if (data->have_artist_name) {
+        if (query_data->have_artist_name) {
                 if (artist_name == NULL) {
-                        data->have_artist_name = FALSE;
+                        query_data->have_artist_name = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->artist_name, TRUE);
@@ -801,11 +820,11 @@ cursor_callback (GObject      *object,
         }
 
         /* title */
-        if (data->have_title) {
+        if (query_data->have_title) {
                 if (title == NULL) {
-                        data->have_title = FALSE;
+                        query_data->have_title = FALSE;
 
-                        for (l = data->selection_metadata; l != NULL; l = l->next) {
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
                                 metadata_clear = l->data;
 
                                 g_string_free (metadata_clear->title, TRUE);
@@ -817,8 +836,25 @@ cursor_callback (GObject      *object,
                 }
         }
 
+        /* album name */
+        if (query_data->have_album_name) {
+                if (album_name == NULL) {
+                        query_data->have_album_name = FALSE;
+
+                        for (l = query_data->selection_metadata; l != NULL; l = l->next) {
+                                metadata_clear = l->data;
+
+                                g_string_free (metadata_clear->album_name, TRUE);
+                                metadata_clear->album_name = NULL;
+                        }
+                } else {
+                        g_string_append (metadata->album_name,
+                                         album_name);
+                }
+        }
+
         /* Get next */
-        cursor_next (data, cursor);
+        cursor_next (query_data, cursor);
 }
 
 static void
@@ -828,26 +864,27 @@ batch_rename_dialog_query_callback (GObject      *object,
 {
         TrackerSparqlConnection *connection;
         TrackerSparqlCursor *cursor;
-        QueryData *data;
+        QueryData *query_data;
         GError *error;
 
         error = NULL;
 
         connection = TRACKER_SPARQL_CONNECTION (object);
-        data = user_data;
+        query_data = user_data;
 
         cursor = tracker_sparql_connection_query_finish (connection,
                                                          result,
                                                          &error);
 
         if (error != NULL) {
+                g_warning ("Error on batch rename query for metadata");
                 g_error_free (error);
 
-                nautilus_batch_rename_dialog_query_finished (data->dialog,
-                                                             data->hash_table,
-                                                             data->selection_metadata);
+                nautilus_batch_rename_dialog_query_finished (query_data->dialog,
+                                                             query_data->hash_table,
+                                                             query_data->selection_metadata);
         } else {
-                cursor_next (data, cursor);
+                cursor_next (query_data, cursor);
         }
 }
 
@@ -861,7 +898,7 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
         GList *l;
         NautilusFile *file;
         GError *error;
-        QueryData *data;
+        QueryData *query_data;
         gchar *file_name;
         FileMetadata *metadata;
         GList *selection_metadata;
@@ -878,6 +915,7 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
                               "nmm:trackNumber(?file) "
                               "nmm:artistName(nmm:performer(?file)) "
                               "nie:title(?file) "
+                              "nmm:albumTitle(nmm:musicAlbum(?file)) "
                               "WHERE { ?file a nfo:FileDataObject. ");
 
         g_string_append_printf (query,
@@ -906,6 +944,7 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
                 metadata->track_number = g_string_new ("");
                 metadata->artist_name = g_string_new ("");
                 metadata->title = g_string_new ("");
+                metadata->album_name = g_string_new ("");
 
                 selection_metadata = g_list_append (selection_metadata, metadata);
 
@@ -926,32 +965,33 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
                                             (GDestroyNotify) g_free,
                                             NULL);
 
-        data = g_new (QueryData, 1);
-        data->hash_table = hash_table;
-        data->dialog = dialog;
-        data->selection_metadata = selection_metadata;
+        query_data = g_new (QueryData, 1);
+        query_data->hash_table = hash_table;
+        query_data->dialog = dialog;
+        query_data->selection_metadata = selection_metadata;
 
-        data->have_season = TRUE;
-        data->have_creation_date = TRUE;
-        data->have_artist_name = TRUE;
-        data->have_track_number = TRUE;
-        data->have_equipment = TRUE;
-        data->have_episode_number = TRUE;
-        data->have_title = TRUE;
+        query_data->have_season = TRUE;
+        query_data->have_creation_date = TRUE;
+        query_data->have_artist_name = TRUE;
+        query_data->have_track_number = TRUE;
+        query_data->have_equipment = TRUE;
+        query_data->have_episode_number = TRUE;
+        query_data->have_title = TRUE;
+        query_data->have_album_name = TRUE;
 
         /* Make an asynchronous query to the store */
         tracker_sparql_connection_query_async (connection,
                                                query->str,
                                                NULL,
                                                batch_rename_dialog_query_callback,
-                                               data);
+                                               query_data);
 
         g_object_unref (connection);
         g_string_free (query, TRUE);
 }
 
 GList*
-distinct_file_parents (GList *selection)
+batch_rename_files_get_distinct_parents (GList *selection)
 {
         GList *result;
         GList *l1;

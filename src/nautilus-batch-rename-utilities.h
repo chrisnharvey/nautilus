@@ -1,3 +1,21 @@
+/* nautilus-batch-rename-utilities.c
+ *
+ * Copyright (C) 2016 Alexandru Pandelea <alexandru.pandelea@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef NAUTILUS_BATCH_RENAME_UTILITIES_H
 #define NAUTILUS_BATCH_RENAME_UTILITIES_H
 
@@ -23,24 +41,6 @@ GList* nautilus_batch_rename_dialog_sort        (GList                       *se
                                                  SortingMode                  mode,
                                                  GHashTable                  *creation_date_table);
 
-gint compare_files_by_last_modified             (gconstpointer a,
-                                                 gconstpointer b);
-
-gint compare_files_by_first_modified            (gconstpointer a,
-                                                 gconstpointer b);
-
-gint compare_files_by_name_descending           (gconstpointer a,
-                                                 gconstpointer b);
-
-gint compare_files_by_name_ascending            (gconstpointer a,
-                                                 gconstpointer b);
-
-gint compare_files_by_first_created             (gconstpointer a,
-                                                 gconstpointer b);
-
-gint compare_files_by_last_created              (gconstpointer a,
-                                                 gconstpointer b);
-
 void check_metadata_for_selection               (NautilusBatchRenameDialog *dialog,
                                                  GList                     *selection);
 
@@ -50,14 +50,14 @@ void string_free                                (gpointer mem);
 
 void conflict_data_free                         (gpointer mem);
 
-GList* distinct_file_parents                    (GList *selection);
+GList* batch_rename_files_get_distinct_parents  (GList *selection);
 
 gboolean file_name_conflicts_with_results       (GList        *selection,
                                                  GList        *new_names,
                                                  GString      *old_name,
                                                  gchar        *parent_uri);
 
-GString* batch_rename_dialog_replace_label_text        (gchar             *string,
-                                                        const gchar       *substr);
+GString* batch_rename_replace_label_text        (gchar             *label,
+                                                 const gchar       *substr);
 
 #endif /* NAUTILUS_BATCH_RENAME_UTILITIES_H */

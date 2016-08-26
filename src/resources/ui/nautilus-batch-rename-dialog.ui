@@ -3,6 +3,7 @@
   <template class="NautilusBatchRenameDialog" parent="GtkDialog">
     <property name="resizable">False</property>
     <property name="modal">True</property>
+    <property name="height-request">563</property>
     <property name="window_position">center-on-parent</property>
     <property name="destroy_with_parent">True</property>
     <signal name="response" handler="batch_rename_dialog_on_response"/>
@@ -49,7 +50,7 @@
                 <property name="margin">20</property>
                 <child>
                   <object class="GtkRadioButton" id="format_mode_button">
-                    <property name="label" translatable="yes">_Format mode</property>
+                    <property name="label" translatable="yes">Rename _using a template</property>
                     <property name="visible">True</property>
                     <property name="can_focus">True</property>
                     <property name="receives_default">False</property>
@@ -289,7 +290,7 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="hexpand">False</property>
-                <property name="vexpand">False</property>
+                <property name="vexpand">True</property>
                 <property name="shadow_type">in</property>
                 <child>
                   <object class="GtkViewport">
@@ -444,6 +445,11 @@
       <item>
         <attribute name="label" translatable="yes">Title</attribute>
         <attribute name="action">dialog.add-title-tag</attribute>
+        <attribute name="hidden-when">action-disabled</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Album Name</attribute>
+        <attribute name="action">dialog.add-album-name-tag</attribute>
         <attribute name="hidden-when">action-disabled</attribute>
       </item>
     </section>

@@ -1014,6 +1014,19 @@ batch_rename_redo_func (NautilusFileUndoInfo *info,
         GList *l, *files;
         NautilusFile *file;
         GFile *old_file;
+        GFile *new_file;
+        GList *l1;
+        GList *l2;
+        GList *l3;
+        GList *l4;
+        GList *l5;
+        GList *l6;
+        GList *l7;
+        gchar *file_name;
+        gchar *old_file_name;
+        GString *new_file_name;
+        GString *new_name;
+        GString *old_name;
 
         files = NULL;
 
@@ -1022,6 +1035,45 @@ batch_rename_redo_func (NautilusFileUndoInfo *info,
 
                 file = nautilus_file_get (old_file);
                 files = g_list_append (files, file);
+        }
+
+        for (l1 = self->priv->new_display_names, l2 = files; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                old_file_name = nautilus_file_get_name (NAUTILUS_FILE (l2->data));
+                new_file_name = l1->data;
+
+                for (l3 = files, l4 = self->priv->new_display_names, l5 = self->priv->old_display_names, l6 = self->priv->old_files, l7 = self->priv->new_files;
+                     l3 != NULL && l4 != NULL && l5 != NULL && l6 != NULL && l7 != NULL;
+                     l3 = l3->next, l4 = l4->next, l5 = l5->next, l6 = l6->next, l7 = l7->next) {
+                        file_name = nautilus_file_get_name (NAUTILUS_FILE (l3->data));
+                        if (l3 != l2 && g_strcmp0 (file_name, new_file_name->str) == 0) {
+
+                                file = NAUTILUS_FILE (l3->data);
+                                new_name = l4->data;
+                                old_name = l5->data;
+                                old_file = l6->data;
+                                new_file = l7->data;
+
+                                files = g_list_remove_link (files, l3);
+                                self->priv->new_display_names = g_list_remove_link (self->priv->new_display_names, l4);
+                                self->priv->old_display_names = g_list_remove_link (self->priv->old_display_names, l5);
+                                self->priv->old_files = g_list_remove_link (self->priv->old_files, l6);
+                                self->priv->new_files = g_list_remove_link (self->priv->new_files, l7);
+
+                                files = g_list_prepend (files, file);
+                                self->priv->new_display_names = g_list_prepend (self->priv->new_display_names, new_name);
+                                self->priv->old_display_names = g_list_prepend (self->priv->old_display_names, old_name);
+                                self->priv->old_files = g_list_prepend (self->priv->old_files, old_file);
+                                self->priv->new_files = g_list_prepend (self->priv->new_files, new_file);
+
+                                g_free (file_name);
+
+                                break;
+                        }
+
+                        g_free (file_name);
+                }
+
+                g_free (old_file_name);
         }
 
         nautilus_file_batch_rename (files, self->priv->new_display_names, file_undo_info_operation_callback, self);
@@ -1036,6 +1088,19 @@ batch_rename_undo_func (NautilusFileUndoInfo *info,
         GList *l, *files;
         NautilusFile *file;
         GFile *new_file;
+        GFile *old_file;
+        GList *l1;
+        GList *l2;
+        GList *l3;
+        GList *l4;
+        GList *l5;
+        GList *l6;
+        GList *l7;
+        gchar *file_name;
+        gchar *old_file_name;
+        GString *new_file_name;
+        GString *new_name;
+        GString *old_name;
 
         files = NULL;
 
@@ -1044,6 +1109,44 @@ batch_rename_undo_func (NautilusFileUndoInfo *info,
 
                 file = nautilus_file_get (new_file);
                 files = g_list_append (files, file);
+        }
+
+        for (l1 = self->priv->old_display_names, l2 = files; l1 != NULL && l2 != NULL; l1 = l1->next, l2 = l2->next) {
+                old_file_name = nautilus_file_get_name (NAUTILUS_FILE (l2->data));
+                new_file_name = l1->data;
+
+                for (l3 = files, l4 = self->priv->old_display_names, l5 = self->priv->new_display_names, l6 = self->priv->old_files, l7 = self->priv->new_files;
+                     l3 != NULL && l4 != NULL && l5 != NULL && l6 != NULL && l7 != NULL;
+                     l3 = l3->next, l4 = l4->next, l5 = l5->next, l6 = l6->next, l7 = l7->next) {
+                        file_name = nautilus_file_get_name (NAUTILUS_FILE (l3->data));
+                        if (l3 != l2 && g_strcmp0 (file_name, new_file_name->str) == 0) {
+                                file = NAUTILUS_FILE (l3->data);
+                                new_name = l4->data;
+                                old_name = l5->data;
+                                old_file = l6->data;
+                                new_file = l7->data;
+
+                                files = g_list_remove_link (files, l3);
+                                self->priv->old_display_names = g_list_remove_link (self->priv->old_display_names, l4);
+                                self->priv->new_display_names = g_list_remove_link (self->priv->new_display_names, l5);
+                                self->priv->old_files = g_list_remove_link (self->priv->old_files, l6);
+                                self->priv->new_files = g_list_remove_link (self->priv->new_files, l7);
+
+                                files = g_list_prepend (files, file);
+                                self->priv->old_display_names = g_list_prepend (self->priv->old_display_names, new_name);
+                                self->priv->new_display_names = g_list_prepend (self->priv->new_display_names, old_name);
+                                self->priv->old_files = g_list_prepend (self->priv->old_files, old_file);
+                                self->priv->new_files = g_list_prepend (self->priv->new_files, new_file);
+
+                                g_free (file_name);
+
+                                break;
+                        }
+
+                        g_free (file_name);
+                }
+
+                g_free (old_file_name);
         }
 
         nautilus_file_batch_rename (files, self->priv->old_display_names, file_undo_info_operation_callback, self);

@@ -1704,9 +1704,8 @@ nautilus_file_operation_complete (NautilusFileOperation *op,
         if (op->files == NULL)
                 nautilus_file_changed (op->file);
 
-	if (op->callback) {
+	if (op->callback)
 		(* op->callback) (op->file, result_file, error, op->callback_data);
-	}
 
 	if (error != NULL) {
 		g_clear_object (&op->undo_info);
@@ -2105,6 +2104,7 @@ real_batch_rename (GList                         *files,
                                          data);
 
                 if (error != NULL) {
+                        g_warning ("Batch rename for file \"%s\" failed", nautilus_file_get_name (file));
                         g_error_free (error);
                         error = NULL;
                 }

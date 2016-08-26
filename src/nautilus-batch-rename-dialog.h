@@ -1,3 +1,20 @@
+/* nautilus-batch-rename-utilities.c
+ *
+ * Copyright (C) 2016 Alexandru Pandelea <alexandru.pandelea@gmail.com>
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef NAUTILUS_BATCH_RENAME_DIALOG_H
 #define NAUTILUS_BATCH_RENAME_DIALOG_H
@@ -20,6 +37,7 @@ G_BEGIN_DECLS
 #define TRACK_NUMBER "[Track number]"
 #define ARTIST_NAME "[Artist name]"
 #define TITLE "[Title]"
+#define ALBUM_NAME "[Album name]"
 
 typedef enum {
         NAUTILUS_BATCH_RENAME_DIALOG_APPEND = 0,
@@ -58,6 +76,7 @@ typedef struct {
         GString *track_number;
         GString *artist_name;
         GString *title;
+        GString *album_name;
 } FileMetadata;
 
 #define NAUTILUS_TYPE_BATCH_RENAME_DIALOG (nautilus_batch_rename_dialog_get_type())
@@ -72,12 +91,9 @@ void            nautilus_batch_rename_dialog_query_finished           (NautilusB
                                                                        GHashTable                *hash_table,
                                                                        GList                     *selection_metadata);
 
-void            check_conflict_for_file                               (NautilusBatchRenameDialog *dialog,
-                                                                       NautilusDirectory         *directory,
-                                                                       GList                     *files);
-
-gint            compare_int                                           (gconstpointer              a,
-                                                                       gconstpointer              b);
+void            check_conflict_for_files                               (NautilusBatchRenameDialog *dialog,
+                                                                        NautilusDirectory         *directory,
+                                                                        GList                     *files);
 
 G_END_DECLS
 
