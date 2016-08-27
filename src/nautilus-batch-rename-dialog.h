@@ -77,6 +77,14 @@ typedef struct {
         GString *artist_name;
         GString *title;
         GString *album_name;
+
+        GString *year;
+        GString *month;
+        GString *day;
+        GString *hours;
+        GString *minutes;
+        GString *seconds;
+        GString *timezone;
 } FileMetadata;
 
 #define NAUTILUS_TYPE_BATCH_RENAME_DIALOG (nautilus_batch_rename_dialog_get_type())

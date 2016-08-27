@@ -712,12 +712,12 @@ batch_rename_dialog_get_new_names (NautilusBatchRenameDialog *dialog)
 {
         GList *result = NULL;
         GList *selection;
-        GList *tags_list;
+        GList *text_chunks;
         g_autofree gchar *entry_text;
         g_autofree gchar *replace_text;
 
         selection = dialog->selection;
-        tags_list = NULL;
+        text_chunks = NULL;
 
         if (dialog->mode == NAUTILUS_BATCH_RENAME_DIALOG_REPLACE)
                 entry_text = g_strdup (gtk_entry_get_text (GTK_ENTRY (dialog->find_entry)));
@@ -734,15 +734,15 @@ batch_rename_dialog_get_new_names (NautilusBatchRenameDialog *dialog)
                                                                  entry_text,
                                                                  replace_text);
         } else {
-                tags_list = split_entry_text (dialog, entry_text);
+                text_chunks = split_entry_text (dialog, entry_text);
 
                 result = batch_rename_dialog_get_new_names_list (dialog->mode,
                                                                  selection,
-                                                                 tags_list,
+                                                                 text_chunks,
                                                                  dialog->selection_metadata,
                                                                  entry_text,
                                                                  replace_text);
-                g_list_free_full (tags_list, string_free);
+                g_list_free_full (text_chunks, string_free);
         }
 
         result = g_list_reverse (result);
@@ -897,12 +897,10 @@ create_original_name_row_for_label (NautilusBatchRenameDialog *dialog,
 
         g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
-        label_old = g_object_new (GTK_TYPE_LABEL,
-                                  "label",old_text,
-                                  "hexpand", TRUE,
-                                  "xalign", 0.0,
-                                  "margin-start", 6,
-                                  NULL);
+        label_old = gtk_label_new (old_text);
+        gtk_label_set_xalign (GTK_LABEL (label_old), 0.0);
+        gtk_widget_set_hexpand (label_old, TRUE);
+        gtk_widget_set_margin_start (label_old, 6);
 
         gtk_label_set_ellipsize (GTK_LABEL (label_old), PANGO_ELLIPSIZE_END);
 
@@ -926,12 +924,10 @@ create_result_row_for_label (NautilusBatchRenameDialog *dialog,
 
         g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
-        label_new = g_object_new (GTK_TYPE_LABEL,
-                                  "label",new_text,
-                                  "hexpand", TRUE,
-                                  "xalign", 0.0,
-                                  "margin-start", 6,
-                                  NULL);
+        label_new = gtk_label_new (new_text);
+        gtk_label_set_xalign (GTK_LABEL (label_new), 0.0);
+        gtk_widget_set_hexpand (label_new, TRUE);
+        gtk_widget_set_margin_start (label_new, 6);
 
         gtk_label_set_ellipsize (GTK_LABEL (label_new), PANGO_ELLIPSIZE_END);
 
@@ -954,12 +950,10 @@ create_arrow_row_for_label (NautilusBatchRenameDialog *dialog,
 
         g_object_set_data (G_OBJECT (row), "show-separator", GINT_TO_POINTER (show_separator));
 
-        icon = g_object_new (GTK_TYPE_LABEL,
-                             "label","→",
-                             "hexpand", FALSE,
-                             "xalign", 1.0,
-                             "margin-start", 6,
-                             NULL);
+        icon = gtk_label_new ("→");
+        gtk_label_set_xalign (GTK_LABEL (icon), 1.0);
+        gtk_widget_set_hexpand (icon, FALSE);
+        gtk_widget_set_margin_start (icon, 6);
 
         dialog->listbox_icons = g_list_prepend (dialog->listbox_icons, icon);
 
@@ -1325,6 +1319,8 @@ check_conflict_for_files (NautilusBatchRenameDialog *dialog,
                                                        (GDestroyNotify) g_free,
                                                        (GDestroyNotify) g_free);
 
+        /* names_conflicts_table is used for knowing which names from the list are not unique,
+         * so that they can easily be reached when needed */
         for (l1 = dialog->new_names, l2 = dialog->selection;
              l1 != NULL && l2 != NULL;
              l1 = l1->next, l2 = l2->next) {
@@ -2146,7 +2142,7 @@ static gboolean
 remove_tag (NautilusBatchRenameDialog *dialog,
             gchar                     *tag_name,
             gchar                     *action_name,
-            gchar                     *keyval_name,
+            gint                       keyval,
             gboolean                   is_modifier)
 {
         TagData *tag_data;
@@ -2167,14 +2163,14 @@ remove_tag (NautilusBatchRenameDialog *dialog,
         if (!tag_data->set)
                 return FALSE;
 
-        if (g_strcmp0(keyval_name, "BackSpace") == 0) {
+        if (keyval == GDK_KEY_BackSpace) {
                 if (cursor_position > tag_data->position &&
                     cursor_position <= tag_data->position + g_utf8_strlen (tag_name, -1)) {
                         delete_tag = TRUE;
                 }
         }
 
-        if (g_strcmp0(keyval_name, "Delete") == 0) {
+        if (keyval == GDK_KEY_Delete) {
                 if (cursor_position >= tag_data->position &&
                     cursor_position < tag_data->position + g_utf8_strlen (tag_name, -1)) {
                         delete_tag = TRUE;
@@ -2182,11 +2178,12 @@ remove_tag (NautilusBatchRenameDialog *dialog,
         }
 
         if (!is_modifier &&
-            g_strcmp0 (keyval_name, "Left") != 0 &&
-            g_strcmp0 (keyval_name, "Right") != 0 &&
-            g_strcmp0 (keyval_name, "Return") != 0 &&
-            g_strcmp0 (keyval_name, "Escape") != 0 &&
-            g_strcmp0 (keyval_name, "Tab") != 0) {
+            keyval != GDK_KEY_Left &&
+            keyval != GDK_KEY_Right &&
+            keyval != GDK_KEY_Delete &&
+            keyval != GDK_KEY_Return &&
+            keyval != GDK_KEY_Escape &&
+            keyval != GDK_KEY_Tab) {
                 if (cursor_position > tag_data->position &&
                     cursor_position < tag_data->position + g_utf8_strlen (tag_name, -1)) {
                         delete_tag = TRUE;
@@ -2282,7 +2279,7 @@ on_key_press_event (GtkWidget    *widget,
                     gpointer      user_data)
 {
         NautilusBatchRenameDialog *dialog;
-        gchar* keyval_name;
+        gint keyval;
         GdkEvent *gdk_event;
         GString *old_entry_text;
         GString *new_entry_text;
@@ -2298,7 +2295,7 @@ on_key_press_event (GtkWidget    *widget,
 
         dialog = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
 
-        keyval_name = gdk_keyval_name (event->keyval);
+        keyval = event->keyval;
 
         entry_has_selection =  (gtk_editable_get_selection_bounds (GTK_EDITABLE (dialog->name_entry),
                                                                    &start,
@@ -2308,13 +2305,13 @@ on_key_press_event (GtkWidget    *widget,
                 return GDK_EVENT_PROPAGATE;
 
         if (entry_has_selection &&
-            ((g_strcmp0 (keyval_name, "Delete") == 0 || g_strcmp0 (keyval_name, "BackSpace") == 0) ||
+            ((keyval == GDK_KEY_Delete || keyval == GDK_KEY_BackSpace) ||
             (!gdk_event->key.is_modifier &&
-            g_strcmp0(keyval_name, "Left") != 0 &&
-            g_strcmp0(keyval_name, "Right") != 0 &&
-            g_strcmp0(keyval_name, "Return") != 0 &&
-            g_strcmp0 (keyval_name, "Escape") != 0 &&
-            g_strcmp0 (keyval_name, "Tab") != 0))) {
+            keyval != GDK_KEY_Left &&
+            keyval != GDK_KEY_Right &&
+            keyval != GDK_KEY_Return &&
+            keyval != GDK_KEY_Escape &&
+            keyval != GDK_KEY_Tab))) {
                 old_entry_text = g_string_new (gtk_entry_get_text (GTK_ENTRY (dialog->name_entry)));
 
                 minimum_tag_position = G_MAXINT;
@@ -2597,7 +2594,7 @@ on_key_press_event (GtkWidget    *widget,
                         g_string_free (new_entry_text, TRUE);
                 }
 
-                if ((g_strcmp0 (keyval_name, "Delete") == 0 || g_strcmp0 (keyval_name, "BackSpace") == 0) &&
+                if ((keyval == GDK_KEY_Delete || keyval == GDK_KEY_BackSpace) &&
                     tag_removed)
                         return TRUE;
 
@@ -2609,89 +2606,113 @@ on_key_press_event (GtkWidget    *widget,
         if (remove_tag (dialog,
                         ORIGINAL_FILE_NAME,
                         "add-original-file-name-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         CREATION_DATE,
                         "add-creation-date-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         NUMBERING,
                         "add-numbering-tag-zero",
-                        keyval_name,
-                        gdk_event->key.is_modifier))
+                        keyval,
+                        gdk_event->key.is_modifier)) {
                 tag_removed = TRUE;
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-one");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-two");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+        }
 
         if (remove_tag (dialog,
                         NUMBERING0,
                         "add-numbering-tag-one",
-                        keyval_name,
-                        gdk_event->key.is_modifier))
+                        keyval,
+                        gdk_event->key.is_modifier)) {
                 tag_removed = TRUE;
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-zero");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-two");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+        }
 
         if (remove_tag (dialog,
                         NUMBERING00,
                         "add-numbering-tag-two",
-                        keyval_name,
-                        gdk_event->key.is_modifier))
+                        keyval,
+                        gdk_event->key.is_modifier)) {
                 tag_removed = TRUE;
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-one");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+
+                action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
+                                                                   "add-numbering-tag-zero");
+                g_simple_action_set_enabled (G_SIMPLE_ACTION (action), TRUE);
+        }
 
         if (remove_tag (dialog,
                         CAMERA_MODEL,
                         "add-equipment-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         SEASON_NUMBER,
                         "add-season-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         EPISODE_NUMBER,
                         "add-episode-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         TRACK_NUMBER,
                         "add-track-number-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         ARTIST_NAME,
                         "add-artist-name-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         TITLE,
                         "add-title-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (remove_tag (dialog,
                         ALBUM_NAME,
                         "add-album-name-tag",
-                        keyval_name,
+                        keyval,
                         gdk_event->key.is_modifier))
                 tag_removed = TRUE;
 
         if (tag_removed) {
-                if (g_strcmp0 (keyval_name, "Delete") == 0 || g_strcmp0 (keyval_name, "BackSpace") == 0)
+                if (keyval == GDK_KEY_Delete || keyval == GDK_KEY_BackSpace)
                         return TRUE;
 
                 return GDK_EVENT_PROPAGATE;
@@ -2741,6 +2762,18 @@ nautilus_batch_rename_dialog_finalize (GObject *object)
                         g_string_free (metadata->artist_name, TRUE);
                 if (metadata->album_name != NULL)
                         g_string_free (metadata->album_name, TRUE);
+                if (metadata->year != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->month != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->day != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->hours != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->minutes != NULL)
+                        g_string_free (metadata->season, TRUE);
+                if (metadata->seconds != NULL)
+                        g_string_free (metadata->season, TRUE);
         }
 
         if (dialog->create_date != NULL)
@@ -2811,8 +2844,6 @@ nautilus_batch_rename_dialog_new (GList             *selection,
                                   NautilusWindow    *window)
 {
         NautilusBatchRenameDialog *dialog;
-        gint files_number;
-        GList *l;
         GString *dialog_title;
 
         dialog = g_object_new (NAUTILUS_TYPE_BATCH_RENAME_DIALOG, "use-header-bar", TRUE, NULL);
@@ -2824,13 +2855,8 @@ nautilus_batch_rename_dialog_new (GList             *selection,
         gtk_window_set_transient_for (GTK_WINDOW (dialog),
                                       GTK_WINDOW (window));
 
-        files_number = 0;
-
-        for (l = dialog->selection; l != NULL; l = l->next)
-                files_number++;
-
         dialog_title = g_string_new ("");
-        g_string_append_printf (dialog_title, "Rename %d Files", files_number);
+        g_string_append_printf (dialog_title, "Rename %d Files", g_list_length (selection));
         gtk_window_set_title (GTK_WINDOW (dialog), dialog_title->str);
 
         nautilus_batch_rename_dialog_initialize_actions (dialog);
