@@ -7,7 +7,7 @@ then
         do
             # Aligning prototypes is not working yet, so avoid headers
             uncrustify -c uncrustify.cfg --no-backup $FILE
-            ./lineup-parameters $FILE > $FILE.temp && echo "$(<$FILE.temp)" > $FILE && rm -f $FILE.temp
+            ./lineup-parameters $FILE > $FILE.temp && mv $FILE.temp $FILE
        done
     done
 else
