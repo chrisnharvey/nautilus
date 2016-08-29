@@ -6,10 +6,8 @@ then
         for FILE in $(find $DIR -name "*.c")
         do
             # Aligning prototypes is not working yet, so avoid headers
-            #uncrustify -c kr-gnome-indent.cfg --no-backup $(find $DIR -name "*.[ch]")
-            echo $FILE
             uncrustify -c uncrustify.cfg --no-backup $FILE
-            ./lineup-parameters $FILE > $FILE.temp && cat $FILE.temp > $FILE && rm -f $FILE.temp
+            ./lineup-parameters $FILE > $FILE.temp && echo "$(<$FILE)" > $FILE && rm -f $FILE.temp
        done
     done
 else
