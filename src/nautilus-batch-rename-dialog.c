@@ -1400,6 +1400,10 @@ update_listbox (NautilusBatchRenameDialog *dialog)
     }
 }
 
+typedef struct
+{
+    GList *directories;
+} CheckConflictsData;
 
 void
 check_conflict_for_files (NautilusBatchRenameDialog *dialog,
@@ -1510,6 +1514,7 @@ check_conflict_for_files (NautilusBatchRenameDialog *dialog,
                 have_conflict = TRUE;
             }
         }
+
         if (!have_conflict)
         {
             tag_present = g_hash_table_lookup (names_conflicts_table, new_name->str) != NULL;
@@ -1531,19 +1536,6 @@ check_conflict_for_files (NautilusBatchRenameDialog *dialog,
         g_free (parent_uri);
     }
 
-    /* check if this is the last call of the callback. Update
-     * the listbox with the conflicts if it is. */
-    if (dialog->checked_parents == g_list_length (dialog->distinct_parents) - 1)
-    {
-        dialog->duplicates = g_list_reverse (dialog->duplicates);
-
-        dialog->checking_conflicts = FALSE;
-
-        update_listbox (dialog);
-    }
-
-    dialog->checked_parents++;
-
     g_free (current_directory);
     g_hash_table_destroy (directory_files_table);
     g_hash_table_destroy (new_names_table);
@@ -1564,20 +1556,75 @@ file_names_list_has_duplicates_callback (GObject      *object,
         return;
     }
 
-    if (dialog->same_parent)
-    {
-        update_listbox (dialog);
-    }
+    update_listbox (dialog);
 }
 
 static void
-on_call_when_ready (NautilusDirectory *directory,
-                    GList             *files,
-                    gpointer           callback_data)
+on_file_names_list_has_duplicates_distinct_parents (GObject      *object,
+                                                    GAsyncResult *res,
+                                                    gpointer      user_data)
 {
-    check_conflict_for_files (NAUTILUS_BATCH_RENAME_DIALOG (callback_data),
-                              directory,
-                              files);
+    NautilusBatchRenameDialog *self;
+
+    self = NAUTILUS_BATCH_RENAME_DIALOG (res);
+
+    if (g_cancellable_is_cancelled (self->conflict_cancellable))
+    {
+        return;
+    }
+
+    self->duplicates = g_list_reverse (dialog->duplicates);
+    self->checking_conflicts = FALSE;
+    update_listbox (self);
+}
+
+static void
+on_directory_conflicts_ready (NautilusDirectory *conflict_directory,
+                              GList             *files,
+                              gpointer           callback_data)
+{
+    GTask *task;
+    GCancellable *cancellable;
+    NautilusBatchRenameDialog *self;
+    CheckConflictData *task_data;
+    NautilusDirectory *next_conflict_directory;
+    const gchar* next_conflict_directory_uri;
+    GList *conflict_directory_list;
+
+    task = G_TASK (callback_data);
+    self = g_task_get_source_object (task);
+    task_data = g_task_get_task_data (task);
+    cancellable = g_task_get_cancellable (task);
+
+    if (!g_cancellable_is_cancelled)
+    {
+        check_conflict_for_files (self, conflict_directory, files);
+    }
+    else
+    {
+        g_task_return_pointer (task, self, NULL);
+    }
+
+    conflict_directory_list = g_list_find (task_data->directories,
+                                           conflict_directory_uri);
+
+    /* check if this is the last call of the callback. Update
+     * the listbox with the conflicts if it is. */
+    if (!g_cancellable_is_cancelled (cancellable) &&
+        conflict_directory_list->next)
+    {
+        next_conflict_directory_uri = conflict_directory_list->next->data;
+        next_conflict_directory = nautilus_directory_get_by_uri (next_conflict_directory_uri);
+        nautilus_directory_call_when_ready (next_conflict_directory,
+                                            NAUTILUS_FILE_ATTRIBUTE_INFO,
+                                            TRUE,
+                                            on_directory_conflicts_ready,
+                                            task);
+    }
+    else
+    {
+        g_task_return_pointer (task, self, NULL);
+    }
 }
 
 static void
@@ -1594,7 +1641,7 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
     NautilusFile *file;
     GString *file_name;
     GString *new_name;
-    NautilusDirectory *parent;
+    NautilusDirectory *conflicts_directory;
     gboolean have_conflict;
     gboolean hash_table_insertion;
     gchar *name;
@@ -1603,6 +1650,7 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
     GHashTable *names_conflicts_table;
     gint exists;
     ConflictData *conflict_data;
+    CheckConflictsData *task_data;
 
     dialog = NAUTILUS_BATCH_RENAME_DIALOG (object);
 
@@ -1615,27 +1663,26 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
 
     g_return_if_fail (g_list_length (dialog->new_names) == g_list_length (dialog->selection));
 
+    task_data = g_task_get_task_data (task);
+
     /* If the batch rename is launched in a search, then for each file we have to check for
      * conflicts with each file in the file's parent directory */
-    if (dialog->distinct_parents != NULL)
+    same_parent = !NAUTILUS_IS_SEARCH_DIRECTORY (dialog->directory);
+    if (!same_parent)
     {
-        for (l1 = dialog->distinct_parents; l1 != NULL; l1 = l1->next)
+        task_data->directories = batch_rename_files_get_distinct_parents (dialog->selection);
+
+        for (l1 = task_data->directories; l1 != NULL; l1 = l1->next)
         {
-            if (g_cancellable_is_cancelled (cancellable))
-            {
-                return;
-            }
+            conflict_directory = nautilus_directory_get_by_uri (l1->data);
 
-            parent = nautilus_directory_get_by_uri (l1->data);
-
-            nautilus_directory_call_when_ready (parent,
+            nautilus_directory_call_when_ready (conflict_directory,
                                                 NAUTILUS_FILE_ATTRIBUTE_INFO,
                                                 TRUE,
-                                                on_call_when_ready,
-                                                dialog);
+                                                on_directory_conflicts_ready,
+                                                task);
         }
 
-        g_task_return_pointer (task, object, NULL);
         return;
     }
 
@@ -1748,10 +1795,25 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
 }
 
 static void
+destroy_conflicts_task_data (gpointer data)
+{
+    CheckConflictsData *conflicts_data = data;
+
+    if (data->directories)
+    {
+        g_list_free (data->directories);
+    }
+}
+
+static void
 file_names_list_has_duplicates_async (NautilusBatchRenameDialog *dialog,
                                       GAsyncReadyCallback        callback,
                                       gpointer                   user_data)
 {
+    g_autoptr (GTask) task = NULL;
+    CheckConflictsData *task_data;
+
+
     if (dialog->checking_conflicts == TRUE)
     {
         g_cancellable_cancel (dialog->conflict_cancellable);
@@ -1760,11 +1822,11 @@ file_names_list_has_duplicates_async (NautilusBatchRenameDialog *dialog,
     dialog->conflict_cancellable = g_cancellable_new ();
 
     dialog->checking_conflicts = TRUE;
-    dialog->conflicts_task = g_task_new (dialog, dialog->conflict_cancellable, callback, user_data);
 
-    g_task_run_in_thread (dialog->conflicts_task, file_names_list_has_duplicates_async_thread);
-
-    g_object_unref (dialog->conflicts_task);
+    task = g_task_new (dialog, dialog->conflict_cancellable, callback, user_data);
+    task_data = g_new0(CheckConflictData, 1);
+    g_task_set_task_data (task, task_data, destroy_conflicts_task_data);
+    g_task_run_in_thread (task, file_names_list_has_duplicates_async_thread);
 }
 
 static void
@@ -2060,6 +2122,7 @@ update_display_text (NautilusBatchRenameDialog *dialog)
     TagData *tag_data;
     TagData *tag_data0;
     TagData *tag_data00;
+    gboolean same_parent;
 
     tag_data = g_hash_table_lookup (dialog->tag_info_table, NUMBERING);
     tag_data0 = g_hash_table_lookup (dialog->tag_info_table, NUMBERING0);
@@ -2107,9 +2170,19 @@ update_display_text (NautilusBatchRenameDialog *dialog)
         return;
     }
 
-    file_names_list_has_duplicates_async (dialog,
-                                          file_names_list_has_duplicates_callback,
-                                          NULL);
+    same_parent = !NAUTILUS_IS_SEARCH_DIRECTORY (dialog->directory);
+    if (same_parent)
+    {
+        file_names_list_has_duplicates_async (dialog,
+                                              file_names_list_has_duplicates_callback,
+                                              NULL);
+    }
+    else
+    {
+        file_names_list_has_duplicates_async (dialog,
+                                              on_file_names_list_has_duplicates_distinct_parents,
+                                              NULL);
+    }
 }
 
 static void
@@ -3172,7 +3245,6 @@ nautilus_batch_rename_dialog_finalize (GObject *object)
         g_hash_table_destroy (dialog->create_date);
     }
 
-    g_list_free_full (dialog->distinct_parents, g_free);
     g_list_free_full (dialog->new_names, string_free);
     g_list_free_full (dialog->duplicates, conflict_data_free);
 
@@ -3255,17 +3327,6 @@ nautilus_batch_rename_dialog_new (GList             *selection,
     gtk_window_set_title (GTK_WINDOW (dialog), dialog_title->str);
 
     nautilus_batch_rename_dialog_initialize_actions (dialog);
-
-    dialog->same_parent = !NAUTILUS_IS_SEARCH_DIRECTORY (directory);
-
-    if (!dialog->same_parent)
-    {
-        dialog->distinct_parents = batch_rename_files_get_distinct_parents (dialog->selection);
-    }
-    else
-    {
-        dialog->distinct_parents = NULL;
-    }
 
     update_display_text (dialog);
 
