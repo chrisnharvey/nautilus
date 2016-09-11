@@ -226,6 +226,7 @@ batch_rename_format (NautilusFile *file,
     GString *tag_string;
     GString *new_name;
     gboolean added_tag;
+    MetadataType metadata_type;
     g_autofree gchar *file_name = NULL;
     g_autofree gchar *extension = NULL;
     gint i;
@@ -287,17 +288,20 @@ batch_rename_format (NautilusFile *file,
             translated_tag = gettext (metadata_tags_constants[i].text_representation);
             if (g_strcmp0 (tag_string->str, translated_tag) == 0)
             {
-                metadata = get_metadata (selection_metadata, file_name,
-                                         metadata_tags_constants[i].metadata_type);
+                metadata_type = metadata_tags_constants[i].metadata_type;
+                metadata = get_metadata (selection_metadata, file_name, metadata_type);
 
-                if (!metadata)
+                /* TODO: This is a hack, we should provide a cancellable for checking
+                 * the metadata, and if that is happening don't enter here. We can
+                 * special case original file name upper in the call stack */
+                if (!metadata && metadata_type != ORIGINAL_FILE_NAME)
                 {
                     g_warning ("Metadata not present in one file, it shouldn't have been added. File name: %s, Metadata: %s",
                                file_name, metadata_tags_constants[i].text_representation);
                     continue;
                 }
 
-                switch (metadata_tags_constants[i].metadata_type)
+                switch (metadata_type)
                 {
                     case ORIGINAL_FILE_NAME:
                     {
@@ -368,9 +372,8 @@ batch_rename_dialog_get_new_names_list (NautilusBatchRenameDialogMode  mode,
     {
         file = NAUTILUS_FILE (l->data);
 
-        file_name = g_string_new ("");
         name = nautilus_file_get_name (file);
-        g_string_append (file_name, name);
+        file_name = g_string_new (name);
 
         /* get the new name here and add it to the list*/
         if (mode == NAUTILUS_BATCH_RENAME_DIALOG_FORMAT)
@@ -741,6 +744,7 @@ on_cursor_callback (GObject      *object,
     {
         if (query_data->has_metadata[i])
         {
+            g_print ("metadata type %s\n", metadata_tags_constants[i].text_representation);
             metadata_type = metadata_tags_constants[i].metadata_type;
             current_metadata = NULL;
             switch (metadata_type)
@@ -748,6 +752,7 @@ on_cursor_callback (GObject      *object,
                 case ORIGINAL_FILE_NAME:
                 {
                     current_metadata = file_name;
+                    g_print ("original file name %s\n", file_name);
                 }
                 break;
                 case CREATION_DATE:
@@ -938,6 +943,7 @@ check_metadata_for_selection (NautilusBatchRenameDialog *dialog,
         }
 
         file_metadata = g_new0 (FileMetadata, 1);
+        file_metadata->file_name = g_string_new (file_name);
         file_metadata->metadata[ORIGINAL_FILE_NAME] = g_string_new (file_name);
 
         selection_metadata = g_list_append (selection_metadata, file_metadata);

@@ -365,6 +365,7 @@ split_entry_text (NautilusBatchRenameDialog *self,
         }
     }
 
+    g_print ("split text %d\n", tags);
     g_array_sort (tag_positions, compare_tag_position);
 
     for (i = 0; i < tags; i++)
@@ -1693,6 +1694,7 @@ nautilus_batch_rename_dialog_query_finished (NautilusBatchRenameDialog *dialog,
         }
 
         metadata_type = tag_data->tag_constants.metadata_type;
+        g_print ("metadat type %s\n", tag_data->tag_constants.text_representation);
         if (file_metadata->metadata[metadata_type] == NULL ||
             file_metadata->metadata[metadata_type]->len <= 0)
         {
@@ -1701,7 +1703,7 @@ nautilus_batch_rename_dialog_query_finished (NautilusBatchRenameDialog *dialog,
         }
         else
         {
-            tag_data->set = FALSE;
+        g_print ("disabling metadat type %s\n", tag_data->tag_constants.text_representation);
         }
     }
 }
@@ -1905,6 +1907,7 @@ remove_tag (NautilusBatchRenameDialog *dialog,
                                           g_utf8_offset_to_pointer (entry_text->str,
                                                                     tag_data->position + g_utf8_strlen (tag_name, -1)));
 
+        g_print ("deleting tag!!! %s\n", tag_data->tag_constants.text_representation);
         tag_data->set = FALSE;
         dialog->cursor_position = tag_data->position;
         dialog->use_manual_cursor_position = TRUE;
@@ -1948,6 +1951,7 @@ remove_tag_selection (NautilusBatchRenameDialog *dialog,
                                           g_utf8_offset_to_pointer (old_entry_text->str,
                                                                     tag_data->new_position + g_utf8_strlen (tag_name, -1)));
 
+        g_print ("removing tag selection\n");
         tag_data->set = FALSE;
 
         action = g_action_map_lookup_action (G_ACTION_MAP (dialog->action_group),
