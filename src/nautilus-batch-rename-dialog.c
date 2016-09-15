@@ -1215,9 +1215,11 @@ on_file_names_list_has_duplicates (GObject      *object,
 
     if (!success)
     {
+        g_print ("file duplicates finished not success\n");
         return;
     }
 
+        g_print ("file duplicates finished success\n");
     self->duplicates = g_list_reverse (self->duplicates);
     self->checking_conflicts = FALSE;
     update_listbox (self);
@@ -1245,6 +1247,7 @@ on_directory_conflicts_ready (NautilusDirectory *conflict_directory,
     task_data = g_task_get_task_data (task);
     cancellable = g_task_get_cancellable (task);
     self = NAUTILUS_BATCH_RENAME_DIALOG (g_task_get_source_object (task));
+        g_print ("conflict reay directory %s\n", nautilus_directory_get_uri (conflict_directory));
     if (!g_cancellable_is_cancelled (cancellable))
     {
         check_conflict_for_files (self, conflict_directory, files);
@@ -1277,6 +1280,7 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
     g_cond_init (&task_data->wait_ready_condition);
 
     directories = batch_rename_files_get_distinct_parents (self->selection);
+        g_print ("NEW FUCKING TASK\n");
     /* check if this is the last call of the callback */
     for (l = directories; l != NULL; l = l->next)
     {
@@ -1288,6 +1292,7 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
         g_mutex_lock (&task_data->wait_ready_mutex);
         task_data->directory_conflicts_ready = FALSE;
 
+        g_print ("directory %s\n", nautilus_directory_get_uri (l->data));
 
         nautilus_directory_call_when_ready (l->data,
                                             NAUTILUS_FILE_ATTRIBUTE_INFO,
@@ -1309,6 +1314,7 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
 
   g_task_return_boolean (task, TRUE);
   nautilus_directory_list_unref (directories);
+ g_print ("unrefing directory \n");
 }
 
 static void
@@ -1512,6 +1518,7 @@ update_display_text (NautilusBatchRenameDialog *dialog)
         return;
     }
 
+  g_print ("updating list\n");
     file_names_list_has_duplicates_async (dialog,
                                           on_file_names_list_has_duplicates,
                                           NULL);
@@ -1840,6 +1847,7 @@ get_tags_intersecting_sorted (NautilusBatchRenameDialog *self,
                                                start_position < tag_end_position;
                 tag_is_contained_in_selection = start_position <= tag_data->position &&
                                                 end_position >= tag_end_position;
+              g_print ("test deleted %d %d %d %d %d\n", selection_intersects_tag_start, selection_intersects_tag_end, tag_is_contained_in_selection, start_position, end_position);
             }
             else
             {
@@ -1848,6 +1856,7 @@ get_tags_intersecting_sorted (NautilusBatchRenameDialog *self,
                 selection_intersects_tag_end = FALSE;
                 tag_is_contained_in_selection = FALSE;
 
+              g_print ("test added %d %d %d %d %d\n", selection_intersects_tag_start, selection_intersects_tag_end, tag_is_contained_in_selection, start_position, end_position);
             }
             if (selection_intersects_tag_end || selection_intersects_tag_start || tag_is_contained_in_selection)
             {
@@ -1902,6 +1911,7 @@ on_delete_text (GtkEditable *editable,
     self = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
     intersecting_tags = get_tags_intersecting_sorted (self, start_position,
                                                       end_position, TEXT_WAS_DELETED);
+  g_print ("###### delete text\n");
     if (intersecting_tags)
     {
         gint last_tag_end_position;
@@ -1961,6 +1971,7 @@ on_insert_text (GtkEditable *editable,
     gint end_position;
     g_autoptr (GList) intersecting_tags = NULL;
 
+    g_print ("$$$$$$$$ inset text\n");
     self = NAUTILUS_BATCH_RENAME_DIALOG (user_data);
     start_position = *(int *)position;
     end_position = start_position + g_utf8_strlen (new_text, -1);
