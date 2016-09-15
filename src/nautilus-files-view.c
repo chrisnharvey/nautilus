@@ -7036,7 +7036,8 @@ real_update_actions_state (NautilusFilesView *view)
     selection_all_in_trash = all_in_trash (selection);
 
     is_read_only = nautilus_files_view_is_read_only (view);
-    can_create_files = nautilus_files_view_supports_creating_files (view);
+    can_create_files = selection_count !=0 &&
+                       nautilus_files_view_supports_creating_files (view);
     can_delete_files =
         can_delete_all (selection) &&
         selection_count != 0 &&
