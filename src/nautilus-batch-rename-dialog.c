@@ -1291,9 +1291,10 @@ file_names_list_has_duplicates_async_thread (GTask        *task,
         }
 
         g_mutex_lock (&task_data->wait_ready_mutex);
+        conflict_directory = NAUTILUS_DIRECTORY (l->data);
         task_data->directory_conflicts_ready = FALSE;
 
-        g_print ("directory %s\n", nautilus_directory_get_uri (l->data));
+        g_print ("directory %s %d\n", nautilus_directory_get_uri (l->data), G_OBJECT (conflict_directory)->ref_count);
 
         nautilus_directory_call_when_ready (l->data,
                                             NAUTILUS_FILE_ATTRIBUTE_INFO,
