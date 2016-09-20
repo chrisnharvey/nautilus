@@ -1110,7 +1110,7 @@ update_places (NautilusGtkPlacesView *view)
     nautilus_gtk_places_view_set_loading (view, TRUE);
 
     /* Add "Computer" row */
-    file = g_file_new_for_path ("/");
+    file = g_file_new_for_path ("/mnt");
     icon = g_themed_icon_new_with_default_fallbacks ("drive-harddisk");
 
     add_file (view, file, icon, _("Computer"), "/", FALSE);
